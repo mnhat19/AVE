@@ -17,6 +17,7 @@ class PipelineContext:
     config: AveConfig
     output_dir: Path
     input_file_path: Optional[Path] = None
+    config_file_path: Optional[Path] = None
 
     raw_df: Optional[Any] = None
     normalized_df: Optional[Any] = None
@@ -39,6 +40,7 @@ class PipelineContext:
     warnings: List[str] = field(default_factory=list)
     trail_writer: Optional[Any] = None
     llm_client: Optional[Any] = None
+    database: Optional[Any] = None
 
     def add_error(self, message: str) -> None:
         self.errors.append(message)
@@ -70,6 +72,7 @@ class PipelineContext:
             "config": self.config.model_dump(),
             "output_dir": str(self.output_dir),
             "input_file_path": str(self.input_file_path) if self.input_file_path else None,
+            "config_file_path": str(self.config_file_path) if self.config_file_path else None,
             "source_manifest": self.source_manifest,
             "ingestion_report": self.ingestion_report,
             "integrity_report": self.integrity_report,
