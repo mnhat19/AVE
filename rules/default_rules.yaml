@@ -1,0 +1,265 @@
+rules:
+  - id: R001
+    name: Amount exceeds approval threshold
+    description: Amount exceeds default approval threshold (500M VND).
+    field: amount
+    condition: gt
+    threshold: 500000000
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [approval, threshold]
+    audit_standard: VAS
+
+  - id: R002
+    name: Weekend transaction without approval
+    description: Weekend transaction with missing special approval.
+    condition: compound
+    logic: AND
+    sub_conditions:
+      - field: transaction_date
+        condition: weekend_transaction
+      - field: approval_special
+        condition: is_null
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [weekend, approval]
+    audit_standard: VAS
+
+  - id: R003
+    name: Round number transaction
+    description: Amount appears to be a round number at million-unit granularity.
+    field: amount
+    condition: matches
+    pattern: "000000$"
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [amount, pattern, approximate]
+    audit_standard: VAS
+
+  - id: R004
+    name: Sequential transaction numbers
+    description: Sequential transaction pattern detected (requires preprocessing).
+    field: sequence_flag
+    condition: eq
+    value: true
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [sequence, requires_preprocessing]
+    audit_standard: VAS
+
+  - id: R005
+    name: Late-night transaction
+    description: Transaction time between 22:00 and 06:00.
+    field: transaction_time
+    condition: matches
+    pattern: "^(2[2-3]|0[0-6]):"
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [time, pattern, approximate]
+    audit_standard: VAS
+
+  - id: R006
+    name: Year-end transaction spike
+    description: Transaction on fiscal year end date.
+    field: transaction_date
+    condition: end_of_period
+    value: year
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [date, year_end]
+    audit_standard: VAS
+
+  - id: R007
+    name: Transaction to unknown vendor
+    description: Vendor not present in approved vendor list.
+    field: vendor_id
+    condition: not_in
+    values: ["__CONFIG_APPROVED_VENDORS__"]
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [vendor, requires_config]
+    audit_standard: VAS
+
+  - id: R008
+    name: Duplicate invoice reference
+    description: Duplicate invoice references detected (requires preprocessing).
+    field: invoice_duplicate_flag
+    condition: eq
+    value: true
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [invoice, duplicate, requires_preprocessing]
+    audit_standard: VAS
+
+  - id: R009
+    name: Amount just below approval threshold
+    description: Amount between 90% and 100% of approval threshold (500M VND).
+    condition: compound
+    logic: AND
+    sub_conditions:
+      - field: amount
+        condition: gte
+        threshold: 450000000
+      - field: amount
+        condition: lte
+        threshold: 500000000
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [approval, threshold]
+    audit_standard: VAS
+
+  - id: R010
+    name: Missing required approval
+    description: High-value transaction without approver.
+    condition: compound
+    logic: AND
+    sub_conditions:
+      - field: amount
+        condition: gt
+        threshold: 100000000
+      - field: approver
+        condition: is_null
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [approval]
+    audit_standard: VAS
+
+  - id: R011
+    name: Currency mismatch
+    description: Currency mismatch detected (requires preprocessing).
+    field: currency_mismatch_flag
+    condition: eq
+    value: true
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [currency, requires_preprocessing]
+    audit_standard: VAS
+
+  - id: R012
+    name: Negative revenue
+    description: Revenue values should not be negative.
+    field: revenue
+    condition: lt
+    threshold: 0
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [revenue]
+    audit_standard: VAS
+
+  - id: R013
+    name: Credit > Debit imbalance
+    description: Imbalance between credit and debit (requires preprocessing).
+    field: imbalance_flag
+    condition: eq
+    value: true
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [journal, requires_preprocessing]
+    audit_standard: VAS
+
+  - id: R014
+    name: Unmatched intercompany transaction
+    description: Intercompany transaction missing matching record.
+    condition: compound
+    logic: AND
+    sub_conditions:
+      - field: interco_flag
+        condition: eq
+        value: true
+      - field: matching_id
+        condition: is_null
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [intercompany]
+    audit_standard: VAS
+
+  - id: R015
+    name: Transaction on public holiday
+    description: Transaction date is in public holidays list.
+    field: transaction_date
+    condition: in
+    values: ["__CONFIG_PUBLIC_HOLIDAYS__"]
+    severity: low
+    requires_cross_check: false
+    active: true
+    tags: [date, requires_config]
+    audit_standard: VAS
+
+  - id: R016
+    name: Excessive discount
+    description: Discount rate exceeds 30%.
+    field: discount_rate
+    condition: gt
+    threshold: 0.30
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [discount]
+    audit_standard: VAS
+
+  - id: R017
+    name: Price deviation from standard
+    description: Unit price deviates from standard price (requires preprocessing).
+    field: price_deviation_flag
+    condition: eq
+    value: true
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [price, requires_preprocessing]
+    audit_standard: VAS
+
+  - id: R018
+    name: Frequent small transactions
+    description: Frequent small transactions per vendor/day (requires aggregation).
+    field: freq_small_txn_flag
+    condition: eq
+    value: true
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [frequency, requires_aggregation]
+    audit_standard: VAS
+
+  - id: R019
+    name: Backdated entry
+    description: Entry date is more than 30 days after transaction date (requires preprocessing).
+    field: backdated_flag
+    condition: eq
+    value: true
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [date, requires_preprocessing]
+    audit_standard: VAS
+
+  - id: R020
+    name: Missing supporting document reference
+    description: High-value transaction without document reference.
+    condition: compound
+    logic: AND
+    sub_conditions:
+      - field: amount
+        condition: gt
+        threshold: 10000000
+      - field: document_ref
+        condition: is_null
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [documentation]
+    audit_standard: VAS

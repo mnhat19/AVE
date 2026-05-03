@@ -1,0 +1,24 @@
+rules:
+  - id: I001
+    name: Duplicate invoice
+    description: Duplicate invoice reference detected.
+    field: invoice_duplicate_flag
+    condition: eq
+    value: true
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [isa, duplicate]
+    audit_standard: ISA
+
+  - id: I002
+    name: Currency mismatch
+    description: Currency mismatch flag raised by preprocessing.
+    field: currency_mismatch_flag
+    condition: eq
+    value: true
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [isa, currency]
+    audit_standard: ISA

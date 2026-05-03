@@ -1,0 +1,1144 @@
+{
+  "meta": {
+    "project": "AVE — Autonomous Verification Engine",
+    "version": "1.0",
+    "generated_from": "AVE_AI_Context_Document_v1.0",
+    "total_tasks": 54,
+    "phases": 6
+  },
+  "tasks": [
+    {
+      "id": "T001",
+      "name": "Project Scaffolding & pyproject.toml",
+      "description": "Initialize the Python package structure. Create the full directory tree as defined in the context document Section 6.1. Write pyproject.toml with all required dependencies pinned to specific versions: Python>=3.11, typer==0.12.*, langgraph==0.2.*, pandas==2.*, polars==0.20.*, openpyxl==3.*, chardet==5.*, pyyaml==6.*, pydantic==2.*, httpx==0.27.*, rich==13.*, ruff (dev). Define [project.scripts] entry: ave = 'ave.cli:app'. Create ave/__init__.py with __version__ = '0.1.0'. Create empty __init__.py in all subpackages: ave/pipeline/, ave/models/, ave/engines/, ave/storage/, ave/export/, ave/utils/, tests/unit/, tests/integration/, tests/fixtures/. Create .gitignore, ruff.toml with line-length=100.",
+      "type": "infra",
+      "inputs": ["Section 6.1 directory structure", "Section 6.2 tech stack with versions"],
+      "outputs": [
+        "pyproject.toml",
+        "ave/__init__.py",
+        "ave/pipeline/__init__.py",
+        "ave/models/__init__.py",
+        "ave/engines/__init__.py",
+        "ave/storage/__init__.py",
+        "ave/export/__init__.py",
+        "ave/utils/__init__.py",
+        "ruff.toml",
+        ".gitignore",
+        "README.md (stub)"
+      ],
+      "dependencies": [],
+      "acceptance_criteria": [
+        "pip install -e . completes without errors",
+        "python -c 'import ave' succeeds",
+        "All subdirectories exist as defined in Section 6.1",
+        "ruff check . returns 0 errors on empty package"
+      ],
+      "edge_cases": [
+        "Ensure ave/pipeline/ does not accidentally become a namespace package (has __init__.py)",
+        "pyproject.toml must include optional dependency group for pdf: weasyprint>=62"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T002",
+      "name": "Custom Exception Hierarchy",
+      "description": "Create ave/exceptions.py with the full exception hierarchy from Section 10.1. Implement: AveError(Exception) as base with message and optional cause; ConfigError(AveError); IngestionError(AveError); RuleValidationError(AveError) with optional rule_id field; PipelineError(AveError) with optional layer field (int); LLMError(AveError); LLMUnavailableError(LLMError) with provider field; LLMResponseError(LLMError) with raw_response field; StorageError(AveError). Each exception must accept a message: str and optional cause: Exception. Implement __str__ to include cause chain if present.",
+      "type": "backend",
+      "inputs": ["Section 10.1 error handling spec"],
+      "outputs": ["ave/exceptions.py"],
+      "dependencies": ["T001"],
+      "acceptance_criteria": [
+        "All 9 exception classes defined and importable",
+        "AveError is base for all others (isinstance checks pass)",
+        "LLMUnavailableError and LLMResponseError are subclasses of LLMError",
+        "Each exception str() includes the message and cause if provided",
+        "raise IngestionError('msg') from original_exc preserves __cause__"
+      ],
+      "edge_cases": [
+        "PipelineError.layer must accept None for pre-pipeline errors",
+        "RuleValidationError.rule_id must accept None for YAML-level parse errors"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T003",
+      "name": "Hashing Utilities Module",
+      "description": "Create ave/utils/hashing.py. Implement: hash_file(path: Path) -> str — reads file in 64KB chunks, returns lowercase hex SHA-256 digest; hash_string(s: str) -> str — encodes as UTF-8, returns SHA-256 hex digest; hash_dict(d: dict) -> str — serializes dict with sorted keys via json.dumps(sort_keys=True), encodes UTF-8, returns SHA-256 hex; hash_dataframe(df: Any) -> str — converts DataFrame to canonical CSV string (sorted columns, sorted rows), hashes the string; verify_hash(data: Any, expected_hash: str) -> bool — accepts file Path, str, or dict, dispatches to correct hash function, returns comparison result. All hashes must be lowercase 64-character hex strings.",
+      "type": "backend",
+      "inputs": ["Section 4.6 immutability requirements", "Section 2.6.1 trail entry schema"],
+      "outputs": ["ave/utils/hashing.py"],
+      "dependencies": ["T001"],
+      "acceptance_criteria": [
+        "hash_file returns identical hash for same file content regardless of filename",
+        "hash_dict is deterministic: same keys/values in different insertion order produce same hash",
+        "hash_dataframe is deterministic for same data regardless of row order",
+        "All hashes are exactly 64 lowercase hex characters",
+        "verify_hash returns False for any tampered input"
+      ],
+      "edge_cases": [
+        "hash_file must handle files > 1GB without loading into memory (use chunked reading)",
+        "hash_dict must handle nested dicts and lists (recursive serialization via json.dumps)",
+        "hash_dataframe: sort both columns and rows before hashing to ensure order-independence"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T004",
+      "name": "Structured Logging Setup",
+      "description": "Create ave/utils/logging.py. Implement: setup_logging(verbose: bool = False, debug: bool = False, log_file: Optional[Path] = None) -> logging.Logger — configures root 'ave' logger; get_logger(name: str) -> logging.Logger — returns child logger. Log format must be: '2025-05-01T14:23:01+07:00 | {level:<8} | {name:<20} | {message}'. Use Python standard logging with rich.logging.RichHandler for console output (with markup=False to avoid formatting interference). If log_file provided, also add FileHandler with same format. Verbose=True sets level to INFO; debug=True sets level to DEBUG; default is WARNING. Logger name passed to get_logger should be the module name (e.g., 'layer1_ingestion').",
+      "type": "backend",
+      "inputs": ["Section 7.7 logging spec", "Section 10.1 coding conventions"],
+      "outputs": ["ave/utils/logging.py"],
+      "dependencies": ["T001"],
+      "acceptance_criteria": [
+        "Log format matches exactly: timestamp | level | module | message",
+        "Timestamp includes timezone offset (not UTC Z suffix)",
+        "Verbose mode shows INFO and above",
+        "Debug mode shows all levels including DEBUG",
+        "File handler writes plain text (no ANSI codes)",
+        "Console handler uses rich formatting"
+      ],
+      "edge_cases": [
+        "Log file directory must be created if it does not exist",
+        "Logger must not propagate to root logger to avoid duplicate output",
+        "Calling setup_logging twice must not add duplicate handlers"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T005",
+      "name": "Finding & TrailEntry Dataclasses",
+      "description": "Create ave/models/finding.py and ave/models/trail.py. In finding.py: implement Finding dataclass exactly matching Section 4.3 schema. All fields as specified. Add to_dict() -> dict method that serializes all fields including row_data (JSON-safe). Add from_dict(d: dict) -> 'Finding' classmethod. In trail.py: implement TrailEntry dataclass matching Section 2.6.1 schema. Fields: session_id (str), entry_id (str, default=uuid4), timestamp (str, default=utcnow ISO8601 with timezone), agent_id (str), action_type (str), input_hash (str), output_hash (str), reasoning_summary (str, max 500 chars enforced via __post_init__), human_decision (Optional[str]), human_decision_timestamp (Optional[str]), human_decision_note (Optional[str]), confidence (float, 0.0-1.0), duration_ms (int), llm_model_used (Optional[str]), llm_tokens_used (Optional[int]). Add to_jsonl_line() -> str that returns JSON string without newline. Add from_jsonl_line(line: str) -> 'TrailEntry' classmethod.",
+      "type": "backend",
+      "inputs": ["Section 4.3 Finding dataclass spec", "Section 2.6.1 TrailEntry schema"],
+      "outputs": ["ave/models/finding.py", "ave/models/trail.py"],
+      "dependencies": ["T001", "T002"],
+      "acceptance_criteria": [
+        "Finding.to_dict() produces JSON-serializable dict (json.dumps succeeds)",
+        "Finding.from_dict(finding.to_dict()) round-trips losslessly",
+        "TrailEntry.reasoning_summary raises ValueError if > 500 chars in __post_init__",
+        "TrailEntry.confidence raises ValueError if outside [0.0, 1.0] in __post_init__",
+        "TrailEntry.to_jsonl_line() produces valid single-line JSON (no embedded newlines)",
+        "TrailEntry timestamps default to current UTC time with timezone suffix"
+      ],
+      "edge_cases": [
+        "Finding.row_data dict may contain datetime objects — serialize to ISO string in to_dict()",
+        "Finding.actual_value and expected_value may be numeric, string, None, or list — serialize all as strings",
+        "TrailEntry.entry_id must be a valid UUID v4 string"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T006",
+      "name": "Source Manifest Model",
+      "description": "Create ave/models/manifest.py. Implement ColumnMeta dataclass: original_name (str), normalized_name (str), inferred_dtype (str: 'date'|'numeric'|'currency'|'text'|'boolean'|'mixed'), null_count (int), null_ratio (float), unique_count (int), sample_values (list[str], max 3 values). Implement SourceManifest dataclass matching Section 4.2 schema exactly. Add to_dict() -> dict method. Add from_dict() classmethod. The source_file sub-object must include: path, filename, format, size_bytes, sha256_hash, encoding, sheet_name. The schema sub-object must include: row_count_raw, row_count_after_cleaning, column_count, dropped_empty_rows, dropped_empty_cols, columns (list of ColumnMeta), parse_warnings (list of str).",
+      "type": "backend",
+      "inputs": ["Section 4.2 Source Manifest schema"],
+      "outputs": ["ave/models/manifest.py"],
+      "dependencies": ["T001"],
+      "acceptance_criteria": [
+        "SourceManifest.to_dict() is JSON-serializable",
+        "All required fields from Section 4.2 are present",
+        "sample_values list is capped at 3 items",
+        "null_ratio is float between 0.0 and 1.0"
+      ],
+      "edge_cases": [
+        "sheet_name is None for CSV files — serialize as null in JSON",
+        "sample_values must be strings even if original values are numeric"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T007",
+      "name": "AveConfig Pydantic Model & YAML Loader",
+      "description": "Create ave/config.py. Implement AveConfig Pydantic BaseModel covering all fields from Section 4.4 config YAML schema. Sub-models: PipelineConfig, IngestionConfig, ColumnConfig, IntegrityConfig, LLMConfig, OutputConfig. Implement load_config(path: Path) -> AveConfig — reads YAML file, validates against schema, raises ConfigError with field-level error messages on validation failure. Implement get_default_config() -> AveConfig — returns config with all defaults from Section 4.4. Validators: max_rows must be 1-50000; llm.provider must be 'ollama'|'groq'|'mistral'; output.formats must be subset of ['json','markdown','pdf']; llm.temperature must be 0.0-1.0; llm.batch_size must be 1-500. The rules_file field should resolve relative paths relative to the config file's directory.",
+      "type": "backend",
+      "inputs": ["Section 4.4 config YAML schema", "T002 for ConfigError"],
+      "outputs": ["ave/config.py"],
+      "dependencies": ["T001", "T002"],
+      "acceptance_criteria": [
+        "load_config('minimal_config.yaml') succeeds with only required fields present",
+        "load_config with invalid provider raises ConfigError with field name",
+        "All defaults match values specified in Section 4.4",
+        "rules_file relative path is resolved to absolute path during loading",
+        "Pydantic validation errors are caught and re-raised as ConfigError"
+      ],
+      "edge_cases": [
+        "YAML file with tabs instead of spaces raises ConfigError with line number",
+        "Missing YAML file raises ConfigError with file path in message",
+        "llm.enabled: false means LLM fields are optional and not validated for connectivity"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T008",
+      "name": "PipelineContext Dataclass",
+      "description": "Create ave/context.py. Implement PipelineContext dataclass exactly matching Section 5.1.1 schema. Fields as specified. Add helper methods: add_error(message: str) -> None — appends to errors list and logs at ERROR level; add_warning(message: str) -> None — appends to warnings list and logs at WARNING level; get_all_findings() -> List[Finding] — returns integrity_findings + anomaly_findings + verified_findings deduplicated by finding_id; has_fatal_error() -> bool — returns True if errors list is non-empty; to_checkpoint_dict() -> dict — serializes serializable fields (excludes DataFrames, trail_writer, llm_client) for checkpoint storage.",
+      "type": "backend",
+      "inputs": ["Section 5.1.1 PipelineContext spec", "T005 Finding model", "T007 AveConfig model"],
+      "outputs": ["ave/context.py"],
+      "dependencies": ["T005", "T007"],
+      "acceptance_criteria": [
+        "get_all_findings() deduplicates by finding_id",
+        "to_checkpoint_dict() is JSON-serializable (no DataFrame objects)",
+        "has_fatal_error() returns True iff errors list is non-empty",
+        "add_error logs at ERROR level via ave logger"
+      ],
+      "edge_cases": [
+        "get_all_findings() must handle case where any findings list is None (not yet set)",
+        "to_checkpoint_dict() must serialize Finding objects via their to_dict() method"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T009",
+      "name": "SQLite Database Module",
+      "description": "Create ave/storage/database.py. Implement AveDatabase class with __init__(db_path: Path) that creates the database and all 4 tables on first connection (using CREATE TABLE IF NOT EXISTS). Implement all CRUD methods: create_session(session: dict) -> None; update_session(session_id: str, updates: dict) -> None; get_session(session_id: str) -> Optional[dict]; list_sessions(limit: int = 20) -> List[dict]; save_finding(finding: Finding) -> None; get_findings(session_id: str) -> List[Finding]; save_rule_snapshot(session_id: str, rules: List[dict]) -> None; save_llm_call(call_data: dict) -> None; get_llm_stats(session_id: str) -> dict. Use context manager for connections (with sqlite3.connect() as conn). Implement retry logic: if OperationalError ('database is locked'), retry 3 times with 100ms sleep, then raise StorageError. All timestamps stored as ISO 8601 strings. Findings serialized via Finding.to_dict().",
+      "type": "database",
+      "inputs": ["Section 4.1 SQLite schema", "T005 Finding model", "T002 StorageError"],
+      "outputs": ["ave/storage/database.py"],
+      "dependencies": ["T005", "T002"],
+      "acceptance_criteria": [
+        "All 4 tables created on first instantiation",
+        "save_finding stores all fields correctly and get_findings round-trips them",
+        "SQLite locked error triggers retry 3 times before raising StorageError",
+        "list_sessions returns sessions ordered by created_at DESC",
+        "update_session raises StorageError if session_id not found"
+      ],
+      "edge_cases": [
+        "db_path directory must be created if it doesn't exist",
+        "Concurrent write attempt (two processes) must retry not crash",
+        "Finding.row_data is stored as JSON text and deserialized on read"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T010",
+      "name": "TrailWriter Engine",
+      "description": "Create ave/engines/trail_writer.py. Implement TrailWriter class. __init__(session_id: str, output_dir: Path) — sets trail file path to output_dir/{session_id}_trail.jsonl, creates file with mode 'a' and sets permissions to 0o600. write(entry: TrailEntry) -> None — appends entry.to_jsonl_line() + newline to JSONL file; also logs at DEBUG level. finalize() -> str — computes SHA-256 hash of entire file content up to this point, writes a special CHAIN_HASH entry with the hash, closes file, returns file path string. verify(trail_path: Path) -> bool — reads all entries from trail file, finds the last CHAIN_HASH entry, recomputes hash of all preceding content, returns True if hashes match. The CHAIN_HASH entry format: {'action_type': 'CHAIN_HASH', 'chain_hash': '<hex>', ...other required fields}.",
+      "type": "backend",
+      "inputs": ["Section 2.6 Audit Trail Engine spec", "T005 TrailEntry model", "T003 hashing utilities"],
+      "outputs": ["ave/engines/trail_writer.py"],
+      "dependencies": ["T005", "T003", "T002"],
+      "acceptance_criteria": [
+        "JSONL file is append-only — no existing lines are ever modified",
+        "File permissions are 0o600 on creation",
+        "verify() returns True for an unmodified trail file",
+        "verify() returns False if any character in any non-CHAIN_HASH line is changed",
+        "finalize() can only be called once per session (raise TrailError if called twice)",
+        "Each write() call produces exactly one line in the JSONL file"
+      ],
+      "edge_cases": [
+        "verify() on a trail file with no CHAIN_HASH entry returns False",
+        "If output_dir does not exist, create it in __init__",
+        "write() after finalize() must raise an error (trail is closed)"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T011",
+      "name": "Checkpoint Save/Load Module",
+      "description": "Create ave/storage/checkpoint.py. Implement CheckpointManager class. __init__(session_id: str, output_dir: Path) — sets checkpoint dir to output_dir/.checkpoints/{session_id}/. save_checkpoint(layer: int, context: PipelineContext) -> None — serializes context.to_checkpoint_dict() to {checkpoint_dir}/layer_{layer}.json; also writes a manifest.json listing saved layers. load_checkpoint(session_id: str, output_dir: Path) -> Optional[dict] — returns the checkpoint dict for the highest completed layer, or None if no checkpoint exists. has_checkpoint(session_id: str, output_dir: Path) -> bool — returns True if checkpoint directory has at least one layer file. clear_checkpoint(session_id: str, output_dir: Path) -> None — deletes entire checkpoint directory for session.",
+      "type": "backend",
+      "inputs": ["Section 3.4 reliability spec", "T008 PipelineContext.to_checkpoint_dict()"],
+      "outputs": ["ave/storage/checkpoint.py"],
+      "dependencies": ["T008", "T002"],
+      "acceptance_criteria": [
+        "save_checkpoint for layer 3 creates layer_3.json in checkpoint dir",
+        "load_checkpoint returns dict from highest-numbered layer file",
+        "has_checkpoint returns False if .checkpoints/{session_id}/ doesn't exist",
+        "clear_checkpoint removes entire checkpoint directory",
+        "Checkpoint JSON is valid and loadable after power-loss simulation (flush to disk)"
+      ],
+      "edge_cases": [
+        "Checkpoint directory permissions: set to 0o700",
+        "save_checkpoint must use atomic write (write to temp file then rename) to prevent corruption",
+        "If layer_3.json exists but layer_2.json does not, load layer_3.json (don't require sequential)"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T012",
+      "name": "Value Normalization Utilities",
+      "description": "Create ave/utils/normalization.py. Implement the following functions: detect_locale(series: Any) -> str — analyzes a numeric string series, detects 'vi' (Vietnamese: . as thousands, , as decimal) or 'en' (English: , as thousands, . as decimal) by examining patterns in at least 20 sample values. Returns 'vi' or 'en'. normalize_number(value: str, locale: str = 'auto') -> Optional[float] — strips currency symbols, thousands separators, converts decimal separator, returns float or None if unparseable. normalize_date(value: str) -> Optional[str] — tries all 5 date formats from Section 2.1.3, returns ISO 8601 date string (YYYY-MM-DD) or None if all fail. normalize_currency(value: str) -> Tuple[Optional[float], Optional[str]] — extracts numeric amount and currency code. strip_pii_if_needed(df, columns_to_strip: List[str]) -> DataFrame — returns DataFrame copy with specified columns replaced by '[REDACTED]'. normalize_text(value: str) -> str — strips whitespace, normalizes Unicode to NFC. to_snake_case(name: str) -> str — converts column name to snake_case (handle spaces, hyphens, Vietnamese chars stripped via unicodedata).",
+      "type": "backend",
+      "inputs": ["Section 2.1.3 normalization steps", "Section 10.5 assumption 11 (Vietnamese locale)"],
+      "outputs": ["ave/utils/normalization.py"],
+      "dependencies": ["T001"],
+      "acceptance_criteria": [
+        "normalize_number('1.000.000', locale='vi') returns 1000000.0",
+        "normalize_number('1,000,000', locale='en') returns 1000000.0",
+        "normalize_number('1,500.50', locale='en') returns 1500.50",
+        "normalize_date('01/05/2025') returns '2025-05-01'",
+        "normalize_date('2025-01-15') returns '2025-01-15'",
+        "normalize_date('not-a-date') returns None",
+        "normalize_currency('VND 500.000') returns (500000.0, 'VND')",
+        "normalize_currency('$50.00') returns (50.0, 'USD')",
+        "to_snake_case('Transaction Date') returns 'transaction_date'",
+        "to_snake_case('Amount (VND)') returns 'amount_vnd'"
+      ],
+      "edge_cases": [
+        "normalize_number on already-numeric float/int should return it unchanged",
+        "detect_locale with fewer than 5 non-null values defaults to 'en'",
+        "normalize_date must not accept '99/99/9999' as valid",
+        "to_snake_case must handle consecutive spaces and multiple hyphens"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T013",
+      "name": "Layer 1 — File Detection & Parsing",
+      "description": "Create ave/pipeline/layer1_ingestion.py partial implementation (file detection + parsing only, normalization in T014). Implement _detect_format(file_path: Path) -> str — check extension first (.csv -> 'csv', .xlsx/.xls -> 'xlsx'), then magic bytes (read first 4 bytes: PK\\x03\\x04 = xlsx). Raise IngestionError for unsupported formats. Implement _detect_encoding(file_path: Path) -> Tuple[str, float] — use chardet.detect on first 100KB, return (encoding, confidence). Implement _detect_separator(file_path: Path, encoding: str) -> str — read first 5 lines, test each separator [',', ';', '\\t', '|'] via csv.Sniffer and column count consistency, return best separator. Implement _parse_file(file_path: Path, config: IngestionConfig) -> Tuple[DataFrame, dict] — for CSV: call pandas.read_csv with detected encoding, separator, header_row, skip_rows; for Excel: call pandas.read_excel with openpyxl engine, sheet_name, header. Return (raw_df, parse_meta dict with encoding_used, separator_used, sheet_used, rows_raw, parse_warnings list).",
+      "type": "backend",
+      "inputs": ["Section 2.1.3 steps 1-4", "T007 IngestionConfig", "T002 IngestionError", "T004 logger"],
+      "outputs": ["ave/pipeline/layer1_ingestion.py (partial: detection + parsing)"],
+      "dependencies": ["T007", "T002", "T004", "T012"],
+      "acceptance_criteria": [
+        "_detect_format raises IngestionError with helpful message for .pdf files",
+        "_detect_encoding returns ('utf-8', confidence) for UTF-8 file",
+        "_detect_encoding falls back to 'utf-8' with warning when confidence < 0.7",
+        "_detect_separator correctly identifies tab-separated file",
+        "_parse_file with Excel file and default sheet reads first sheet",
+        "_parse_file with CSV with BOM encoding parses correctly"
+      ],
+      "edge_cases": [
+        "File extension is .csv but content is Excel binary: _detect_format must check magic bytes",
+        "Excel file with password protection: openpyxl raises exception — catch and raise IngestionError",
+        "CSV with inconsistent column counts: use on_bad_lines='warn' and log count of bad rows",
+        "Empty file (0 bytes): raise IngestionError before attempting parse"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T014",
+      "name": "Layer 1 — Schema Normalization & Manifest Creation",
+      "description": "Extend ave/pipeline/layer1_ingestion.py. Implement _prune_empty(df: DataFrame) -> Tuple[DataFrame, int, int] — drops fully-null rows and fully-null columns, returns (pruned_df, rows_dropped, cols_dropped). Implement _normalize_headers(df: DataFrame) -> Tuple[DataFrame, dict] — strips whitespace, applies to_snake_case, resolves duplicates (append _1, _2), returns (df, {original: normalized} mapping). Implement _infer_schema(df: DataFrame, config: AveConfig) -> List[ColumnMeta] — for each column, detect dtype using heuristics and any column type hints from config. Implement _normalize_values(df: DataFrame, schema: List[ColumnMeta], locale: str) -> Tuple[DataFrame, List[str]] — apply per-column normalization based on inferred dtype; returns (normalized_df, list of warnings). Implement _create_manifest(file_path, parse_meta, schema, df_raw, df_normalized, session_id) -> SourceManifest. Implement _switch_to_polars_if_large(df: DataFrame, threshold: int) -> Any — converts Pandas DataFrame to Polars if row count >= threshold. Assemble full run(ctx: PipelineContext) -> PipelineContext function following Section 2.1.3 steps 1-10, writing trail entries at FILE_RECEIVED, SCHEMA_NORMALIZED, MANIFEST_CREATED.",
+      "type": "backend",
+      "inputs": ["Section 2.1.3 steps 5-10", "T013 parsing functions", "T012 normalization utils", "T006 SourceManifest", "T010 TrailWriter", "T008 PipelineContext"],
+      "outputs": ["ave/pipeline/layer1_ingestion.py (complete)"],
+      "dependencies": ["T013", "T006", "T010", "T008", "T012"],
+      "acceptance_criteria": [
+        "_prune_empty removes rows where ALL cells are NaN",
+        "_normalize_headers converts 'Transaction Date' to 'transaction_date'",
+        "_normalize_headers resolves 'amount', 'amount' to 'amount', 'amount_1'",
+        "_infer_schema correctly identifies date, numeric, currency, text columns",
+        "run() sets ctx.normalized_df, ctx.source_manifest, ctx.ingestion_report",
+        "run() writes exactly 3 trail entries: FILE_RECEIVED, SCHEMA_NORMALIZED, MANIFEST_CREATED",
+        "Polars used when row count >= config.pipeline.use_polars_threshold"
+      ],
+      "edge_cases": [
+        "Column with 60% dates and 40% text should be inferred as 'mixed' dtype",
+        "After header normalization, if a normalized name is a Python keyword (e.g. 'type'), append underscore: 'type_'",
+        "_normalize_values must not modify the original raw_df — work on a copy"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "id": "T015",
+      "name": "Rule YAML DSL — Loader & Validator",
+      "description": "Create ave/engines/rule_engine.py partial (Rule model + loader/validator only, evaluator in T016). Define Rule dataclass with all fields from Section 2.3.3: id, name, description, field, fields, condition, threshold, value, values, pattern, reference_field, severity, requires_cross_check, active, tags, audit_standard. Implement load_rules_from_yaml(path: Path) -> List[Rule] — parses YAML, validates each rule, raises RuleValidationError with rule id and field name for any violation. Implement validate_rules(rules: List[Rule]) -> List[str] — returns list of error strings (empty = valid). Validation checks: id matches ^[A-Z][0-9]{3}$; severity is high|medium|low; condition is a recognized type (all types from Section 2.3.3); duplicate IDs raise error; threshold required when condition is gt/gte/lt/lte; pattern required when condition is matches/not_matches; field required for single-field conditions; compound conditions require logic (AND|OR) and sub_conditions list.",
+      "type": "backend",
+      "inputs": ["Section 2.3.3 Rule YAML DSL full spec", "T002 RuleValidationError"],
+      "outputs": ["ave/engines/rule_engine.py (partial: Rule model + loader)"],
+      "dependencies": ["T002", "T004"],
+      "acceptance_criteria": [
+        "load_rules_from_yaml('default_rules.yaml') loads all 20 rules without error",
+        "Rule with duplicate ID raises RuleValidationError mentioning the ID",
+        "Rule with condition='gt' and no threshold raises RuleValidationError",
+        "Rule with active=false is loaded but marked inactive",
+        "validate_rules on valid list returns empty list",
+        "Missing required field 'id' raises RuleValidationError with position info"
+      ],
+      "edge_cases": [
+        "YAML file with empty rules list returns [] (valid — pipeline warns but continues)",
+        "Rule with fields: [] (empty list) should raise validation error",
+        "compound rule with missing logic field raises RuleValidationError",
+        "Rule ID case sensitivity: 'r001' does not match ^[A-Z][0-9]{3}$ — raise error"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T016",
+      "name": "Rule Engine — Condition Evaluators",
+      "description": "Extend ave/engines/rule_engine.py with all condition evaluators. Implement evaluate_rule(rule: Rule, df: Any) -> List[Finding] using a match statement dispatching on rule.condition. Implement each evaluator as a private function: _eval_gt/_eval_gte/_eval_lt/_eval_lte (numeric comparison, handle None/NaN by not flagging); _eval_eq/_eval_neq (equality, type-coerced); _eval_in/_eval_not_in (membership in values list); _eval_is_null/_eval_not_null (null check); _eval_matches/_eval_not_matches (regex, compile pattern once with re.compile); _eval_weekend_transaction(field, df) -> flags rows where the date column falls on Saturday (weekday()==5) or Sunday (weekday()==6); _eval_end_of_period(field, df, config) -> flags dates that are last day of month/quarter/year per config; _eval_cross_field_gt/_eval_cross_field_eq (compare two columns); _eval_compound(rule, df) -> applies sub_conditions with AND/OR logic. Each evaluator must return List[Finding] where each Finding has: finding_type='anomaly', layer=3, detection_method='rule', rule_id=rule.id, rule_name=rule.name, row_index (0-based), row_data=row.to_dict(), severity=rule.severity, confidence=1.0, reasoning='<Rule name>: <specific value and field>'. Implement evaluate(df: Any) -> List[Finding] that runs all active rules and deduplicates by (rule_id, row_index).",
+      "type": "backend",
+      "inputs": ["Section 2.3.3 condition types", "T015 Rule model", "T005 Finding model", "T012 normalization (for date parsing in weekend check)"],
+      "outputs": ["ave/engines/rule_engine.py (complete)"],
+      "dependencies": ["T015", "T005", "T012"],
+      "acceptance_criteria": [
+        "gt evaluator on amount column flags rows where amount > threshold",
+        "weekend_transaction evaluator correctly identifies Saturday and Sunday",
+        "compound AND evaluator only flags rows where ALL sub-conditions match",
+        "compound OR evaluator flags rows where ANY sub-condition matches",
+        "Rule referencing non-existent column logs warning and returns [] (not exception)",
+        "matches evaluator with invalid regex raises RuleValidationError at load time",
+        "evaluate() deduplicates: same rule + same row produces exactly 1 Finding",
+        "Reasoning string includes the specific column value that triggered the rule"
+      ],
+      "edge_cases": [
+        "gt evaluator on null value: null should NOT be flagged (only numeric comparison)",
+        "weekend_transaction on a non-date column: log warning, skip rule",
+        "end_of_period for last day of fiscal year (Dec 31): correctly identifies 31st as end",
+        "cross_field_gt where reference_field is null: do not flag"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "id": "T017",
+      "name": "Default Rules YAML File (20 rules)",
+      "description": "Create rules/default_rules.yaml containing all 20 rules from Section 2.3.4 in the DSL format defined in Section 2.3.3. Each rule must be a complete, valid entry: id, name, description, field(s), condition, threshold/value/values/pattern as appropriate, severity, requires_cross_check, active: true, tags, audit_standard. Rules requiring configurable thresholds must use the config's approval_thresholds values as comments but default to the values in Section 2.3.4. R006 uses fiscal_year_end_month/day from config. R007 requires approved_vendor_file config (if null, skip rule with warning). R015 requires public_holidays list from config (if empty, skip with warning). Also create rules/examples/vas_rules.yaml and rules/examples/isa_rules.yaml as minimal examples with 2-3 rules each tagged with the respective audit standard.",
+      "type": "infra",
+      "inputs": ["Section 2.3.4 default rule set", "Section 2.3.3 YAML DSL schema"],
+      "outputs": ["rules/default_rules.yaml", "rules/examples/vas_rules.yaml", "rules/examples/isa_rules.yaml"],
+      "dependencies": ["T015"],
+      "acceptance_criteria": [
+        "load_rules_from_yaml('rules/default_rules.yaml') loads exactly 20 rules",
+        "All 20 rule IDs match R001-R020 in order",
+        "validate_rules returns empty list for default_rules.yaml",
+        "R002 uses compound condition with weekend_transaction and is_null",
+        "R009 uses compound condition with gte and lte on amount field",
+        "R018 (frequent small transactions) uses a valid DSL condition or is marked as requiring special handling via tag"
+      ],
+      "edge_cases": [
+        "R018 (frequent small transactions — same vendor, same day, count > 5) cannot be expressed purely in per-row DSL — mark active: false with a comment explaining it needs post-aggregation logic, implement as a special case in Layer 3",
+        "R007 and R015 must have active: true but the evaluator skips them gracefully when config values are absent"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T018",
+      "name": "Layer 2 — Integrity Agent (IC-001 to IC-005)",
+      "description": "Create ave/pipeline/layer2_integrity.py partial. Implement the first 5 integrity checks as private functions that each accept (df: Any, config: AveConfig) -> List[Finding]: _check_ic001_null_completeness(df, config) — for each column, if null_ratio > threshold (from config per-column or default), create Finding with finding_type='integrity', layer=2, rule_id='IC-001', row_index of each null row, column_name, severity based on whether column is required; _check_ic002_duplicate_rows(df, config) — hash each row (all columns as string tuple), find hashes appearing > 1 time, flag all duplicate rows (not just the second occurrence), severity='high'; _check_ic003_duplicate_keys(df, config) — if config.primary_key_columns is non-empty, find rows where key tuple appears > 1 time, severity='high'; _check_ic004_date_range(df, config) — for all date-typed columns, flag rows outside [min_date, max_date] from config, severity='medium'; _check_ic005_numeric_range(df, config) — for columns with min_value/max_value in config.columns, flag out-of-range values, severity='medium'. Each Finding must include: specific value that failed, expected constraint in reasoning field.",
+      "type": "backend",
+      "inputs": ["Section 2.2.2 IC-001 to IC-005", "T005 Finding model", "T007 AveConfig", "T008 PipelineContext"],
+      "outputs": ["ave/pipeline/layer2_integrity.py (partial: IC-001 to IC-005)"],
+      "dependencies": ["T005", "T007", "T008"],
+      "acceptance_criteria": [
+        "IC-001 flags row 5 when row 5 has null in a required column",
+        "IC-002 flags all instances of duplicate rows (row 2 AND row 7 if they're identical)",
+        "IC-003 does nothing and returns [] when primary_key_columns is empty list",
+        "IC-004 flags a date of '1800-01-01' as out of range",
+        "IC-005 flags a row where amount = -1 when min_value = 0 for that column",
+        "All findings include actual_value and expected constraint in reasoning"
+      ],
+      "edge_cases": [
+        "IC-002: row hashing must handle NaN values consistently (treat as fixed sentinel 'NULL_VALUE')",
+        "IC-004: column inferred as 'mixed' dtype should attempt date parse on string values before checking range",
+        "IC-001: a column with 0 required annotation and 0 nulls should produce no findings"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T019",
+      "name": "Layer 2 — Integrity Agent (IC-006 to IC-010)",
+      "description": "Continue ave/pipeline/layer2_integrity.py. Implement remaining 5 checks: _check_ic006_negative_amounts(df, config) — for currency-typed columns not configured to allow negatives, flag rows with negative values, severity='medium'; _check_ic007_format_consistency(df, config) — for columns with pattern defined in config.columns, compile regex once and flag non-matching non-null values, severity='low'; _check_ic008_referential_integrity(df, config) — if foreign_key mappings in config, load reference set from config-specified file or list, flag values not in set, severity='high'; _check_ic009_cross_column_logic(df, config) — evaluate cross-column expressions from config (e.g. end_date >= start_date), flag violations, severity='medium'; _check_ic010_statistical_outliers(df, config) — for numeric columns, compute mean and std, flag values beyond mean ± N*std (default N=3 from config), severity='low'. Implement _score_findings(findings: List[Finding]) -> dict — computes total_severity_score and overall_rating. Implement full run(ctx: PipelineContext) -> PipelineContext that calls all 10 checks, scores findings, saves integrity_report and integrity_findings to context, writes trail entry with action_type='INTEGRITY_CHECK_RUN'.",
+      "type": "backend",
+      "inputs": ["Section 2.2.2 IC-006 to IC-010", "Section 2.2.3 severity scoring", "T018 partial implementation"],
+      "outputs": ["ave/pipeline/layer2_integrity.py (complete)"],
+      "dependencies": ["T018"],
+      "acceptance_criteria": [
+        "IC-010 flags a value of 9999999 when all other values are between 100-1000 (clearly an outlier)",
+        "_score_findings returns overall_rating='SEVERE' when total score > 30",
+        "_score_findings returns overall_rating='CLEAN' when findings list is empty",
+        "run() writes exactly 1 trail entry with action_type='INTEGRITY_CHECK_RUN'",
+        "run() sets ctx.integrity_report with all required keys from Section 2.2",
+        "IC-006 does NOT flag columns where config explicitly allows negatives"
+      ],
+      "edge_cases": [
+        "IC-010: column with fewer than 10 rows should skip outlier detection (insufficient sample)",
+        "IC-008: if reference file doesn't exist, log warning and skip check (don't crash)",
+        "IC-009: expression evaluation must catch ZeroDivisionError and log warning per-row"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T020",
+      "name": "Layer 3 — Rule-Based Anomaly Detection",
+      "description": "Create ave/pipeline/layer3_anomaly.py partial (rule-based only). Implement run_rule_engine(ctx: PipelineContext) -> List[Finding]: instantiates RuleEngine with rules from ctx.config, calls evaluate(ctx.normalized_df), logs per-rule finding counts at DEBUG level, writes a trail entry per rule that produced >= 1 finding (action_type='ANOMALY_RULE_EVALUATED', reasoning_summary includes rule_id and count). Also implement the R018 special case (frequency-based): _check_r018_frequent_small_transactions(df, config) — group by (vendor_id column if exists + date column), count transactions per group, flag all rows in groups where count > 5 and all amounts < approval_thresholds.level_1. If required columns don't exist, log warning and return []. Write trail entry for R018 results. Combine rule engine findings + R018 findings. Write single summary trail entry with action_type='ANOMALY_RULE_EVALUATED' and total count.",
+      "type": "backend",
+      "inputs": ["Section 2.3.1 Mode A rule engine", "T016 RuleEngine", "T017 default rules", "T010 TrailWriter"],
+      "outputs": ["ave/pipeline/layer3_anomaly.py (partial: rule-based)"],
+      "dependencies": ["T016", "T017", "T010", "T008"],
+      "acceptance_criteria": [
+        "Findings from rule engine are stored in ctx.anomaly_findings",
+        "R018 check returns findings when same vendor has 6+ small transactions on same day",
+        "R018 returns [] without error when vendor_id column does not exist",
+        "Trail entries are written for each rule that produced findings",
+        "Rule findings have detection_method='rule' and confidence=1.0"
+      ],
+      "edge_cases": [
+        "If all 20 rules produce 0 findings, anomaly_findings is empty list (not None)",
+        "R018 must handle DataFrames where vendor column name varies (look for column name containing 'vendor')"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T021",
+      "name": "LLM Client — Ollama Implementation",
+      "description": "Create ave/engines/llm_client.py with the LLMClient abstract base class from Section 5.2 and the OllamaClient implementation. LLMClient ABC: complete(prompt, system_prompt) -> str; complete_json(prompt, system_prompt, max_retries) -> dict; health_check() -> bool. OllamaClient.__init__(model: str, base_url: str = 'http://localhost:11434', timeout: int = 30) — reads base_url from AVE_OLLAMA_URL env var if set. complete() — POST to /api/generate with model, prompt, stream=false, options={temperature: config.temperature}. Use httpx.Client with timeout. Parse response JSON, extract response field. complete_json() — calls complete() with explicit JSON instruction appended to prompt; attempts json.loads() on response; strips markdown code fences before parsing; on JSONDecodeError, retries up to max_retries with prompt 'You must respond with ONLY valid JSON, no other text:' prefixed. health_check() — GET /api/tags, returns True if 200, False otherwise. Wrap all httpx exceptions in LLMUnavailableError.",
+      "type": "backend",
+      "inputs": ["Section 5.2 LLM client interface", "T002 LLMError exceptions"],
+      "outputs": ["ave/engines/llm_client.py (partial: base + Ollama)"],
+      "dependencies": ["T002", "T004"],
+      "acceptance_criteria": [
+        "health_check() returns False (not exception) when Ollama is not running",
+        "complete_json() succeeds when LLM wraps JSON in markdown code fences",
+        "complete_json() raises LLMResponseError after max_retries on persistent bad JSON",
+        "Timeout raises LLMUnavailableError with provider='ollama' in message",
+        "AVE_OLLAMA_URL environment variable overrides default localhost URL"
+      ],
+      "edge_cases": [
+        "LLM response with BOM character at start of JSON string",
+        "LLM response that is valid JSON but empty object {} should be returned without error",
+        "Connection refused (Ollama not installed): raise LLMUnavailableError with install instructions"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T022",
+      "name": "LLM Client — Groq & Mistral Implementations",
+      "description": "Extend ave/engines/llm_client.py. Implement GroqClient(LLMClient): __init__(model: str, api_key: str = None) — api_key defaults to os.environ.get('GROQ_API_KEY'); raises LLMUnavailableError at init if api_key is None. complete() — POST to https://api.groq.com/openai/v1/chat/completions with OpenAI-compatible format (messages array with system + user roles). health_check() — attempt a minimal completion with 1 max_token. Implement MistralClient(LLMClient): similar to GroqClient but uses MISTRAL_API_KEY and https://api.mistral.ai/v1/chat/completions. Implement LLMRouter: __init__(primary: str, config: LLMConfig) — builds fallback chain [primary, next_in_chain, ..., 'none'] where chain order is ollama -> groq -> mistral. get_client() -> Optional[LLMClient] — returns first available client (health_check passes). If no client available, returns None. complete_with_fallback(prompt, system_prompt) -> Optional[str] — tries clients in order, returns first successful response, None if all fail.",
+      "type": "backend",
+      "inputs": ["Section 5.2 LLM Router spec", "T021 LLMClient base"],
+      "outputs": ["ave/engines/llm_client.py (complete)"],
+      "dependencies": ["T021"],
+      "acceptance_criteria": [
+        "GroqClient raises LLMUnavailableError at init when GROQ_API_KEY not set",
+        "LLMRouter with primary='ollama' tries Groq if Ollama health_check fails",
+        "LLMRouter.complete_with_fallback returns None when all providers unavailable",
+        "Both GroqClient and MistralClient use OpenAI-compatible message format",
+        "Router logs which provider was used at DEBUG level"
+      ],
+      "edge_cases": [
+        "Groq API rate limit (HTTP 429): catch and include in error message, do not retry",
+        "Mistral API returns 503: treat as unavailable, try next in fallback chain",
+        "LLMRouter with primary='none': immediately returns None from complete_with_fallback"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T023",
+      "name": "Layer 3 — LLM-Assisted Anomaly Detection",
+      "description": "Extend ave/pipeline/layer3_anomaly.py with LLM mode. Implement _prepare_llm_batches(df: Any, already_flagged_indices: Set[int], batch_size: int) -> List[List[dict]] — excludes already-flagged rows, strips PII columns per config, serializes remaining rows to dicts in batches of batch_size. Implement _build_anomaly_prompt(batch: List[dict], column_defs: dict, audit_context: str, flagged: Set[int]) -> str using the template from Section 2.3.5 exactly. Implement _parse_llm_findings(response: dict, batch_offset: int, df: Any, session_id: str) -> List[Finding] — extracts flagged list from response, validates each: row_index is integer within [0, len(df)), confidence in [0,1], severity is valid. Cross-validates: for each flagged item, verify that the LLM-stated evidence (the row_index) actually contains the values described in reasoning by checking df.iloc[row_index]. Discard any finding where evidence cannot be verified. Create Finding with detection_method='llm'. Implement run_llm_detection(ctx: PipelineContext) -> List[Finding] — calls LLMRouter, batches, parses, writes trail entries for each LLM call (LLM_QUERY_SENT, LLM_RESPONSE_RECEIVED). If LLM unavailable, log warning and return []. Assemble complete run(ctx) combining rule-based + LLM findings.",
+      "type": "backend",
+      "inputs": ["Section 2.3.5 LLM prompt template", "Section 2.3.2 Mode B spec", "T020 rule-based detection", "T022 LLMRouter"],
+      "outputs": ["ave/pipeline/layer3_anomaly.py (complete)"],
+      "dependencies": ["T020", "T022", "T010"],
+      "acceptance_criteria": [
+        "LLM findings have detection_method='llm' and confidence from LLM response",
+        "Finding with row_index=99 in a 50-row DataFrame is discarded",
+        "LLM findings are excluded for rows already flagged by rule engine",
+        "Trail entries LLM_QUERY_SENT and LLM_RESPONSE_RECEIVED written per batch",
+        "If LLM returns empty flagged list, no findings added (not an error)",
+        "PII columns are not included in LLM batch payload"
+      ],
+      "edge_cases": [
+        "LLM returns row_index as a string '5' instead of integer: coerce to int",
+        "LLM returns duplicate row_index entries in same response: deduplicate",
+        "LLM call timeout mid-batch: log warning, discard that batch, continue with next"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "id": "T024",
+      "name": "Layer 4 — Cross-Verification Stub",
+      "description": "Create ave/pipeline/layer4_crossverify.py as the MVP stub implementation per Section 2.4.1. Implement run(ctx: PipelineContext) -> PipelineContext: copies ctx.anomaly_findings + ctx.integrity_findings into ctx.verified_findings with cross_verified=False and cross_verify_status='pending' on each finding (create new Finding instances — do not mutate originals). Write one trail entry with action_type='CROSS_VERIFY_RUN', reasoning_summary='Cross-verification skipped in MVP — findings passed through unchanged'. Log INFO: 'Layer 4 (Cross-Verification): stub mode — {len(findings)} findings passed through'. Return context. Also add a module-level comment: # TODO: Full cross-verification implementation in Alpha (Section 2.4.2)",
+      "type": "backend",
+      "inputs": ["Section 2.4.1 MVP stub spec", "T008 PipelineContext", "T010 TrailWriter"],
+      "outputs": ["ave/pipeline/layer4_crossverify.py"],
+      "dependencies": ["T023", "T010", "T008"],
+      "acceptance_criteria": [
+        "run() sets ctx.verified_findings to combined list from anomaly_findings + integrity_findings",
+        "Each finding in verified_findings has cross_verified=False",
+        "Trail entry is written with action_type='CROSS_VERIFY_RUN'",
+        "Original findings in ctx.anomaly_findings and ctx.integrity_findings are not mutated"
+      ],
+      "edge_cases": [
+        "Empty findings list: verified_findings = [] (not None)",
+        "Finding with no finding_id should be assigned a UUID before storing in verified_findings"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T025",
+      "name": "Layer 5 — Findings Aggregation & JSON Report",
+      "description": "Create ave/pipeline/layer5_synthesis.py partial (aggregation + JSON report). Implement _aggregate_findings(ctx: PipelineContext) -> dict — builds the final_report dict matching the JSON schema from Section 2.5.2. Includes: report_meta (session_id, generated_at, ave_version, file_processed, config_file, config_hash), source_summary (from manifest), integrity_summary (overall_rating, score, check counts, finding counts), anomaly_summary (total, by_severity dict, by_rule dict, llm_assisted_count), findings (serialized list of all Finding objects via to_dict()), audit_trail_ref (trail file path), recommendations (empty list at this stage — filled in T026). Implement _export_json(report: dict, output_dir: Path, session_id: str) -> Path — writes report to {output_dir}/{session_id}_report.json with indent=2. Returns file path. Implement partial run(ctx) that aggregates and writes JSON.",
+      "type": "backend",
+      "inputs": ["Section 2.5.2 JSON report schema", "T024 verified_findings", "T006 SourceManifest"],
+      "outputs": ["ave/pipeline/layer5_synthesis.py (partial: aggregation + JSON)"],
+      "dependencies": ["T024", "T009"],
+      "acceptance_criteria": [
+        "JSON report matches schema from Section 2.5.2 exactly",
+        "anomaly_summary.by_severity counts match actual findings",
+        "anomaly_summary.llm_assisted_count correctly counts detection_method='llm' findings",
+        "JSON file is valid and parseable",
+        "report_meta.config_hash is SHA-256 of config file content"
+      ],
+      "edge_cases": [
+        "If source_manifest is None (ingestion failed), report_meta still writes with available data",
+        "Findings list may be empty: anomaly_summary.total_flagged = 0 is valid"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T026",
+      "name": "Layer 5 — Markdown Report & Recommendations",
+      "description": "Create ave/export/markdown_exporter.py. Implement MarkdownExporter class with generate(report: dict, ctx: PipelineContext) -> str — produces Markdown string matching the template in Section 2.5.2. Sections: # AVE Audit Report header with metadata, ## Executive Summary (2-3 sentence text — LLM-generated if enabled, template-based if not), ## Integrity Check Results (table with IC-001 to IC-010 pass/fail and finding counts), ## Anomaly Findings (table: Row Index | Rule ID | Description | Severity | Value), ## High-Severity Findings Detail (one sub-section per high finding with full evidence), ## Audit Trail Reference (path + hash). Implement _generate_recommendations_template(findings: List) -> List[str] — rules-based: if >3 high findings, add 'Escalate to senior auditor'; if any IC-002 duplicates, add 'Investigate source system for duplicate entries'; etc. (5 template rules). Implement _generate_recommendations_llm(findings_summary: str, llm_client) -> List[str] — sends prompt asking for 3-5 actionable audit recommendations. Export MarkdownExporter, update Layer 5 run() to call it and write {session_id}_report.md.",
+      "type": "backend",
+      "inputs": ["Section 2.5.2 Markdown report template", "T025 report dict", "T022 LLMClient"],
+      "outputs": ["ave/export/markdown_exporter.py", "ave/pipeline/layer5_synthesis.py (extended)"],
+      "dependencies": ["T025", "T022"],
+      "acceptance_criteria": [
+        "Generated Markdown has all 5 required sections",
+        "Findings table has correct column headers: Row Index | Rule ID | Description | Severity | Value",
+        "Template recommendations appear when LLM disabled",
+        "LLM recommendations appear when LLM enabled and available",
+        "Empty findings produces Markdown report with 'No anomalies detected' in findings section"
+      ],
+      "edge_cases": [
+        "Findings table with > 100 rows: include top 50 by severity and add note 'and N more findings in JSON report'",
+        "Markdown special characters in row data (e.g. pipe |) must be escaped in table cells"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T027",
+      "name": "Layer 5 — PDF Export",
+      "description": "Create ave/export/pdf_exporter.py. Implement PdfExporter class. __init__: check if weasyprint is importable; set self.available = True/False. generate(markdown_content: str, output_path: Path, session_id: str) -> Optional[Path]: if not available, log warning 'PDF export skipped: WeasyPrint not installed' and return None. Convert Markdown to HTML using Python markdown library (pip install markdown). Wrap HTML in a complete HTML document with embedded CSS: Arial font, A4 page size, table styling, header with 'AVE Audit Report' and session ID, footer with page number and SHA-256 hash of report content. Use weasyprint.HTML(string=html_content).write_pdf(output_path). Return output_path. Update Layer 5 run() to call PDF export if 'pdf' in config.output.formats. Write trail entry with action_type='EXPORT_COMPLETED' including format='pdf' and file path.",
+      "type": "backend",
+      "inputs": ["Section 6.2 WeasyPrint spec", "T026 Markdown content"],
+      "outputs": ["ave/export/pdf_exporter.py", "ave/pipeline/layer5_synthesis.py (final)"],
+      "dependencies": ["T026"],
+      "acceptance_criteria": [
+        "generate() returns None without exception when WeasyPrint not installed",
+        "PDF is generated when WeasyPrint available",
+        "PDF contains page numbers in footer",
+        "PDF has AVE header with session ID on each page",
+        "Hash of report content appears in PDF footer"
+      ],
+      "edge_cases": [
+        "WeasyPrint raises error due to missing Cairo/Pango system libraries: catch and return None with detailed error message",
+        "Markdown with code blocks: render as monospace in PDF",
+        "Very long findings table: PDF pagination must not split table rows"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T028",
+      "name": "Complete Layer 5 — Trail Finalization & DB Save",
+      "description": "Complete ave/pipeline/layer5_synthesis.py run() function. After all exports, call ctx.trail_writer.finalize() to write the CHAIN_HASH entry and get trail file path. Save final session record to SQLite via ctx.database.update_session() with: completed_at=now, status='completed', overall_rating, total_findings count. Save all findings via ctx.database.save_finding() for each finding in ctx.verified_findings. Save rule snapshot via ctx.database.save_rule_snapshot(). Write final trail entry with action_type='EXPORT_COMPLETED' containing all exported file paths. Update ctx.report_paths with {format: path} for all generated reports. Set ctx.final_report. Return ctx.",
+      "type": "backend",
+      "inputs": ["T027 PDF export", "T009 database module", "T010 trail writer", "T025/T026 report generation"],
+      "outputs": ["ave/pipeline/layer5_synthesis.py (complete)"],
+      "dependencies": ["T027", "T009", "T010"],
+      "acceptance_criteria": [
+        "finalize() called exactly once per session",
+        "SQLite session record updated with completed_at and status='completed'",
+        "All verified_findings saved to SQLite findings table",
+        "ctx.report_paths contains paths for all generated formats",
+        "Trail CHAIN_HASH entry is the last line in the JSONL file"
+      ],
+      "edge_cases": [
+        "If database.save_finding() fails for one finding, continue with others and log error (don't abort)",
+        "If trail finalize() fails, log StorageError but still update database"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T029",
+      "name": "LangGraph Orchestrator",
+      "description": "Create ave/orchestrator.py. Import all 5 layer run() functions. Implement build_pipeline() -> CompiledGraph using LangGraph StateGraph(PipelineContext): add_node for each of 5 layers; set_entry_point('ingest'); add_edge chain ingest->integrity->anomaly->crossverify->synthesize->END; add_conditional_edges from 'ingest' to either 'integrity' (if not ctx.has_fatal_error()) or END. Add error-handling wrapper around each node: if layer raises PipelineError, call ctx.add_error(str(e)), continue to next layer with partial context (all layers must be resilient). Implement run_pipeline(config: AveConfig, file_path: Path, output_dir: Path, session_id: str, trail_writer: TrailWriter, db: AveDatabase, llm_client: Optional[LLMClient]) -> PipelineContext: initializes PipelineContext, invokes compiled pipeline, handles checkpoint resume logic (check_checkpoint, ask user, load or start fresh), returns final context. Implement _ask_resume(session_id: str) -> bool — uses rich.prompt.Confirm if stdin is TTY, returns True automatically if non-interactive.",
+      "type": "backend",
+      "inputs": ["Section 6.4 LangGraph state machine spec", "T014/T019/T023/T024/T028 all layer run() functions", "T011 checkpoint manager"],
+      "outputs": ["ave/orchestrator.py"],
+      "dependencies": ["T014", "T019", "T023", "T024", "T028", "T011"],
+      "acceptance_criteria": [
+        "Pipeline executes layers in order: 1->2->3->4->5",
+        "Fatal ingestion error causes pipeline to skip to END without running layers 2-5",
+        "Layer 3 exception does not abort pipeline — layer 4 and 5 run with partial findings",
+        "Checkpoint resume prompts user when incomplete session found",
+        "_ask_resume returns True without prompting in non-TTY environments"
+      ],
+      "edge_cases": [
+        "LangGraph version mismatch: catch ImportError and provide installation instructions",
+        "Two incomplete sessions with same file: prompt must show session ID to disambiguate"
+      ],
+      "estimated_complexity": "high"
+    },
+    {
+      "id": "T030",
+      "name": "CLI — `ave run` Command",
+      "description": "Create ave/cli.py. Initialize Typer app = typer.Typer(name='ave', help='Autonomous Verification Engine for Auditors'). Implement run command with all options from Section 2.7.2: file (Path, required), config (Path, default='./audit_rules.yaml'), output_dir (Path, default='./ave_output/'), llm (str, default='ollama'), llm_model (Optional[str]), sheet (Optional[str]), verbose (bool flag), dry_run (bool flag), no_llm (bool flag), report_format (str, default='all'). Implementation: (1) Call setup_logging(verbose); (2) Generate session_id = str(uuid4()); (3) Load config via load_config(); (4) Check LLM availability via LLMRouter; (5) Initialize TrailWriter, AveDatabase; (6) Call run_pipeline(); (7) Display summary using rich.console: session ID, file processed, overall_rating, finding counts by severity, generated report paths; (8) Exit with appropriate exit code (Section 2.7.3). Handle all AveError subclasses with specific error messages and correct exit codes.",
+      "type": "backend",
+      "inputs": ["Section 2.7.1 CLI commands", "Section 2.7.2 full option spec", "Section 2.7.3 exit codes", "T029 orchestrator"],
+      "outputs": ["ave/cli.py (partial: run command)"],
+      "dependencies": ["T029", "T007", "T009", "T010", "T022"],
+      "acceptance_criteria": [
+        "ave run --help shows all options with descriptions",
+        "ave run --file nonexistent.csv exits with code 1 and helpful message",
+        "ave run --no-llm equivalent to --llm none",
+        "Successful run exits with code 0",
+        "Summary displayed after run shows session ID, rating, and report paths",
+        "dry_run flag completes pipeline but writes no output files"
+      ],
+      "edge_cases": [
+        "--file with relative path: resolve to absolute before passing to pipeline",
+        "--config not found: exit code 1 with message 'Config file not found: {path}'",
+        "KeyboardInterrupt during run: write INTERRUPTED trail entry, exit with code 2"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T031",
+      "name": "CLI — `ave review` Interactive Command",
+      "description": "Extend ave/cli.py. Implement review command: ave review --session <session_id>. Loads findings from SQLite for session. Uses rich.console to display findings one by one: show row data in a table, rule triggered, severity badge (color-coded: red=high, yellow=medium, blue=low), reasoning. Prompt user for each finding: [A]ccept / [R]eject / [S]kip / [Q]uit. On A/R: write HUMAN_REVIEW_RECEIVED trail entry with human_decision='accepted'|'rejected'; update finding in SQLite with human_decision, human_decision_at, human_decision_note. On S: skip without writing. On Q: exit review mode with summary of decisions made. At end, display summary: N accepted, M rejected, K skipped. If session not found: exit with code 1. If session has no findings: display 'No findings to review for session {id}'.",
+      "type": "backend",
+      "inputs": ["Section 2.6.4 Human Review Flow spec", "T009 database", "T010 trail writer"],
+      "outputs": ["ave/cli.py (extended with review command)"],
+      "dependencies": ["T030", "T009", "T010"],
+      "acceptance_criteria": [
+        "Each finding shown with color-coded severity",
+        "Accept decision updates SQLite finding record with human_decision='accepted'",
+        "Trail entry HUMAN_REVIEW_RECEIVED written for each accept/reject",
+        "Quit mid-review saves all decisions made so far",
+        "Running review twice on same session shows updated decision status"
+      ],
+      "edge_cases": [
+        "Terminal resize during review: rich handles responsively",
+        "Session with 200 findings: paginate at 10 per screen",
+        "Non-TTY environment (piped input): raise error 'Review requires interactive terminal'"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T032",
+      "name": "CLI — Utility Commands",
+      "description": "Extend ave/cli.py with remaining commands. ave export --session <id> --format <pdf|json|markdown>: loads session from DB, regenerates requested report format from stored findings, writes to output_dir. ave sessions --last N: queries SQLite for last N sessions, displays as rich Table: session_id, created_at, file, status, overall_rating, findings_count. ave validate-config --config <path>: loads YAML, runs validation, displays either 'Config valid: N rules loaded' or table of validation errors with rule ID and error message. ave check-llm --provider <ollama|groq|mistral>: runs health_check() on specified provider, displays status + model list for Ollama (GET /api/tags), API connectivity for Groq/Mistral. Each command follows exit codes from Section 2.7.3.",
+      "type": "backend",
+      "inputs": ["Section 2.7.1 all commands", "T009 database", "T026/T027 exporters", "T022 LLM clients"],
+      "outputs": ["ave/cli.py (complete)"],
+      "dependencies": ["T031", "T026", "T027"],
+      "acceptance_criteria": [
+        "ave sessions --last 5 shows 5 most recent sessions in table",
+        "ave validate-config on default_rules.yaml shows '20 rules loaded'",
+        "ave check-llm --provider ollama shows list of available Ollama models",
+        "ave export regenerates report without re-running pipeline",
+        "All commands have --help documentation"
+      ],
+      "edge_cases": [
+        "ave export for session with status='running': display warning 'Session incomplete'",
+        "ave sessions on empty database: display 'No sessions found'",
+        "ave check-llm --provider groq without GROQ_API_KEY: show 'API key not set' message"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T033",
+      "name": "Progress Bar & Rich Console Integration",
+      "description": "Create ave/utils/progress.py. Implement PipelineProgress class using rich.progress.Progress with SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn. Steps: Layer 1 Ingestion (weight: 10%), Layer 2 Integrity (weight: 20%), Layer 3 Anomaly Detection (weight: 40%), Layer 4 Cross-Verification (weight: 10%), Layer 5 Synthesis (weight: 20%). Implement start(total_steps=5), update(layer: int, message: str), complete(layer: int), error(layer: int, message: str). Progress must display: current layer name, row count being processed, elapsed time. Also implement print_summary(ctx: PipelineContext) using rich.table.Table and rich.panel.Panel: show file processed, session ID, overall rating (color-coded panel: green=CLEAN, yellow=MINOR/MODERATE, red=SEVERE), findings table by severity, report file paths. Integrate progress updates into orchestrator (pass progress object through context or as callback).",
+      "type": "backend",
+      "inputs": ["Section 3.5 usability requirements", "T029 orchestrator", "T030 CLI"],
+      "outputs": ["ave/utils/progress.py"],
+      "dependencies": ["T030"],
+      "acceptance_criteria": [
+        "Progress bar shows percentage completion based on current layer",
+        "Overall rating panel is green for CLEAN, red for SEVERE",
+        "Elapsed time shown next to current layer",
+        "print_summary shows correct finding counts per severity",
+        "Progress renders correctly in 80-column terminal"
+      ],
+      "edge_cases": [
+        "Non-TTY terminal (e.g. CI environment): disable rich progress, use plain text logging only",
+        "Pipeline error in layer: mark that layer as failed in progress (red X)"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T034",
+      "name": "Test Fixtures — CSV & Config Files",
+      "description": "Create all test fixture files in tests/fixtures/. Generate programmatically using Python scripts to ensure determinism. Files to create: clean_transactions.csv (100 rows, columns: id, transaction_date, amount, vendor_id, description, approver, currency — all valid values); transactions_with_nulls.csv (100 rows, 10 rows have null in 'approver' and 'amount' fields); transactions_with_duplicates.csv (100 rows, rows 20-24 are exact copies of rows 10-14); transactions_with_anomalies.csv (500 rows, contains violations for R001-R020 including: 5 transactions > 500M VND, 3 weekend transactions without approval, 10 round-number transactions, 2 duplicate invoice numbers, amounts just below approval threshold); malformed_encoding.csv (50 rows, saved as latin-1); excel_single_sheet.xlsx (200 rows, same schema); excel_multi_sheet.xlsx (3 sheets, 200/100/50 rows). Config files: minimal_config.yaml (only required fields), full_config.yaml (all fields including approval thresholds, date ranges, column types), invalid_rules.yaml (contains duplicate ID, missing threshold, bad condition type). Write a generate_fixtures.py script that recreates all fixtures deterministically.",
+      "type": "test",
+      "inputs": ["Section 9.3 fixture spec", "Column schemas from Section 2.3.4"],
+      "outputs": [
+        "tests/fixtures/clean_transactions.csv",
+        "tests/fixtures/transactions_with_nulls.csv",
+        "tests/fixtures/transactions_with_duplicates.csv",
+        "tests/fixtures/transactions_with_anomalies.csv",
+        "tests/fixtures/malformed_encoding.csv",
+        "tests/fixtures/excel_single_sheet.xlsx",
+        "tests/fixtures/excel_multi_sheet.xlsx",
+        "tests/fixtures/minimal_config.yaml",
+        "tests/fixtures/full_config.yaml",
+        "tests/fixtures/invalid_rules.yaml",
+        "tests/fixtures/generate_fixtures.py"
+      ],
+      "dependencies": ["T001"],
+      "acceptance_criteria": [
+        "transactions_with_anomalies.csv triggers at least 15 unique rules when processed",
+        "transactions_with_duplicates.csv has exactly 5 duplicate row pairs (10 flagged rows)",
+        "malformed_encoding.csv is detected as latin-1 with chardet confidence > 0.7",
+        "excel_multi_sheet.xlsx has exactly 3 sheets named 'Sheet1', 'Sheet2', 'Sheet3'",
+        "generate_fixtures.py recreates identical files on re-run (deterministic random seed)"
+      ],
+      "edge_cases": [
+        "transactions_with_anomalies.csv: include at least one row that triggers R009 (amount between 90%-100% of threshold)",
+        "full_config.yaml: must reference default_rules.yaml as rules_file"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T035",
+      "name": "Unit Tests — Normalization Utilities",
+      "description": "Create tests/unit/test_normalization.py. Test all functions in ave/utils/normalization.py. Test cases for normalize_number: Vietnamese format '1.000.000' -> 1000000.0, US format '1,000,000' -> 1000000.0, mixed '1,500.50' -> 1500.50, with currency prefix '₫ 500.000' -> 500000.0, already-float 1500.0 -> 1500.0, empty string -> None, 'N/A' -> None. Test cases for normalize_date: all 5 format patterns, invalid dates return None, '99/99/9999' returns None, datetime objects pass through. Test cases for detect_locale: series with Vietnamese dots returns 'vi', series with English commas returns 'en', mixed series returns best guess. Test to_snake_case: spaces, hyphens, Vietnamese diacritics stripped, consecutive separators, Python keywords. Test strip_pii_if_needed: specified columns become '[REDACTED]', other columns unchanged. Use pytest.mark.parametrize for multiple test cases.",
+      "type": "test",
+      "inputs": ["T012 normalization module"],
+      "outputs": ["tests/unit/test_normalization.py"],
+      "dependencies": ["T012"],
+      "acceptance_criteria": [
+        "All test cases pass",
+        "pytest --cov=ave/utils/normalization.py shows >= 90% line coverage",
+        "No tests depend on external files or network"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T036",
+      "name": "Unit Tests — Hashing & Trail Writer",
+      "description": "Create tests/unit/test_hashing.py and tests/unit/test_trail_writer.py. In test_hashing.py: test hash_file on known content returns expected SHA-256; test hash_dict is order-independent (same keys different insertion order); test hash_dataframe is deterministic; test verify_hash returns False on tampered string. In test_trail_writer.py: test write() appends correct JSONL line; test that JSONL file is not overwritten on second write(); test finalize() writes CHAIN_HASH entry as last line; test verify() returns True on untampered file; test verify() returns False when one character is changed in a preceding entry; test that write() after finalize() raises exception; test file permissions are 0o600 on creation (skip on Windows).",
+      "type": "test",
+      "inputs": ["T003 hashing", "T010 trail writer"],
+      "outputs": ["tests/unit/test_hashing.py", "tests/unit/test_trail_writer.py"],
+      "dependencies": ["T010", "T003"],
+      "acceptance_criteria": [
+        "All tests pass",
+        "Trail tamper test uses actual file modification (not mocking)",
+        "Permissions test is platform-conditional (skip on Windows)",
+        ">= 95% coverage on hashing.py and trail_writer.py"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T037",
+      "name": "Unit Tests — Rule Engine",
+      "description": "Create tests/unit/test_rule_engine.py. Test load_rules_from_yaml with valid file; test validate_rules on rules with each type of violation; test each condition evaluator type with: (a) row that matches, (b) row that does not match, (c) row with null in target column. Use parametrize for condition types: gt, gte, lt, lte, eq, neq, in, not_in, is_null, not_null, matches, not_matches, weekend_transaction, end_of_period, cross_field_gt, cross_field_eq, compound AND, compound OR. Test evaluate() deduplication. Test Rule with active=false produces no findings. Test rule referencing missing column returns [] with warning logged. Test compound rule with AND where one sub-condition is null-producing column. Test R002 equivalent (compound weekend + missing approval) triggers correctly on Saturday transaction.",
+      "type": "test",
+      "inputs": ["T016 rule engine", "T034 fixture data"],
+      "outputs": ["tests/unit/test_rule_engine.py"],
+      "dependencies": ["T016", "T034"],
+      "acceptance_criteria": [
+        "All condition evaluator tests pass",
+        "compound AND test with null sub-condition produces no finding (not exception)",
+        ">= 90% coverage on rule_engine.py",
+        "Each finding from evaluate() has non-empty reasoning string"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T038",
+      "name": "Unit Tests — Integrity Agent",
+      "description": "Create tests/unit/test_integrity.py. For each of 10 integrity checks (IC-001 to IC-010): write at least 2 tests — one that produces findings, one that produces none (clean data). Additional tests: IC-001 with configured null threshold of 50% (should not flag 30% null ratio); IC-002 detects exact duplicate rows but not rows with single different value; IC-003 with empty primary_key_columns returns no findings; IC-010 with fewer than 10 rows returns no findings (insufficient sample); _score_findings with empty list returns CLEAN; _score_findings with 12 high-severity findings returns SEVERE; overall_rating transitions: 0=CLEAN, 5=MINOR, 20=MODERATE, 35=SEVERE.",
+      "type": "test",
+      "inputs": ["T019 integrity agent", "T034 fixture data"],
+      "outputs": ["tests/unit/test_integrity.py"],
+      "dependencies": ["T019", "T034"],
+      "acceptance_criteria": [
+        "All 10 IC tests pass with both clean and dirty data",
+        "IC-010 insufficient sample test passes",
+        "Score transitions test all 4 ratings",
+        ">= 90% coverage on layer2_integrity.py"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T039",
+      "name": "Unit Tests — LLM Client",
+      "description": "Create tests/unit/test_llm_client.py. Use pytest-mock to mock httpx.Client. Test OllamaClient.health_check() returns False when mock returns connection error; returns True when mock returns 200. Test OllamaClient.complete_json() with mock returning valid JSON; with mock returning JSON in markdown code fences; with mock returning invalid JSON triggers retry; after max_retries raises LLMResponseError. Test GroqClient raises LLMUnavailableError at init when GROQ_API_KEY not in env. Test LLMRouter with primary='ollama' and Ollama returning unavailable: falls back to Groq if GROQ_API_KEY set. Test LLMRouter.complete_with_fallback returns None when all providers fail. Use environment variable patching with monkeypatch.",
+      "type": "test",
+      "inputs": ["T022 LLM clients"],
+      "outputs": ["tests/unit/test_llm_client.py"],
+      "dependencies": ["T022"],
+      "acceptance_criteria": [
+        "All tests use mocks — no real HTTP calls",
+        "Retry behavior tested with mock returning bad JSON exactly N times",
+        "GroqClient init test works without GROQ_API_KEY in environment",
+        ">= 85% coverage on llm_client.py"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T040",
+      "name": "Integration Test — Full Pipeline (No LLM)",
+      "description": "Create tests/integration/test_pipeline_integration.py. Implement test_csv_clean_file: run full pipeline on clean_transactions.csv with minimal_config.yaml and llm=none; assert exit-equivalent success; assert ctx.integrity_report['overall_rating'] == 'CLEAN'; assert len(ctx.verified_findings) == 0; assert trail JSONL exists and verify() returns True; assert JSON report exists and is valid. Implement test_csv_with_anomalies: run on transactions_with_anomalies.csv with full_config.yaml; assert >= 15 findings; assert at least 1 high-severity finding; assert JSON report has all required keys; assert Markdown report contains findings table. Implement test_csv_with_nulls: assert IC-001 findings present. Implement test_csv_with_duplicates: assert IC-002 findings present. Implement test_excel_file: run on excel_single_sheet.xlsx; assert same results as equivalent CSV. Implement test_pipeline_resume: simulate checkpoint, clear layer 4+5 checkpoint, re-run with auto-resume, assert final output equivalent to fresh run.",
+      "type": "integration",
+      "inputs": ["T029 orchestrator", "T034 fixtures", "Section 9.2 integration test spec"],
+      "outputs": ["tests/integration/test_pipeline_integration.py"],
+      "dependencies": ["T029", "T034"],
+      "acceptance_criteria": [
+        "All 6 integration tests pass",
+        "test_csv_clean_file: verified_findings is empty list",
+        "test_csv_with_anomalies: >= 15 findings in verified_findings",
+        "Trail file exists and verify() returns True for all tests",
+        "No test makes real LLM API calls"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T041",
+      "name": "Integration Test — Trail Immutability & Hash Chain",
+      "description": "Create tests/integration/test_trail_integrity.py. Implement test_trail_hash_chain_valid: run pipeline, read trail JSONL, call TrailWriter.verify(), assert True. Implement test_trail_tampering_detected: run pipeline, read trail JSONL, modify the amount value in the 3rd entry (any field), write back, call verify(), assert False. Implement test_trail_append_only: run pipeline, check that JSONL line count matches expected (one per action type). Implement test_trail_entry_completeness: parse each trail entry, assert all required fields present (session_id, timestamp, agent_id, action_type, input_hash, output_hash, confidence). Implement test_session_id_consistency: all trail entries have same session_id. Implement test_file_permissions: assert trail file has mode 0o600 on Unix systems.",
+      "type": "integration",
+      "inputs": ["T010 trail writer", "T029 orchestrator", "T034 fixtures"],
+      "outputs": ["tests/integration/test_trail_integrity.py"],
+      "dependencies": ["T040"],
+      "acceptance_criteria": [
+        "All 6 trail tests pass",
+        "Tampering test detects single-character modification",
+        "All required trail entry fields present in every entry",
+        "Session ID consistent across all entries in a run"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T042",
+      "name": "Integration Test — CLI Commands",
+      "description": "Create tests/integration/test_cli.py using typer.testing.CliRunner. Implement test_run_help: assert exit code 0 and '--file' in output. Implement test_run_missing_file: assert exit code 1 and 'not found' in output. Implement test_run_success: run on clean_transactions.csv, assert exit code 0, assert output contains session ID and 'CLEAN'. Implement test_run_invalid_config: assert exit code 1. Implement test_validate_config_valid: assert '20 rules loaded' in output. Implement test_validate_config_invalid: assert exit code 1 and error details in output. Implement test_sessions_empty: assert 'No sessions found'. Implement test_sessions_after_run: run pipeline, then ave sessions --last 1, assert session ID in output. Implement test_check_llm_no_ollama: mock Ollama unavailable, assert 'not available' in output without exception.",
+      "type": "integration",
+      "inputs": ["T032 complete CLI", "T034 fixtures"],
+      "outputs": ["tests/integration/test_cli.py"],
+      "dependencies": ["T032", "T034"],
+      "acceptance_criteria": [
+        "All 9 CLI tests pass using CliRunner (no subprocess)",
+        "test_run_success produces output files in temp directory",
+        "test_check_llm_no_ollama does not make real network calls"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T043",
+      "name": "Performance Tests",
+      "description": "Create tests/integration/test_performance.py. Add conftest.py fixture that generates large CSV files on demand: generate_csv(rows: int) uses Faker or random data with the transaction schema. Implement test_10k_rows_no_llm_under_60s: generate 10K row file, run pipeline without LLM, assert elapsed < 60 seconds. Implement test_50k_rows_no_llm_under_120s: generate 50K row file, run pipeline without LLM, assert elapsed < 120 seconds. Implement test_10k_rows_memory_under_500mb: use psutil to measure RSS before and after, assert delta < 500MB. Implement test_row_limit_enforcement: create 50001-row file, assert pipeline raises error with 'exceeds MVP limit' message. Mark tests with @pytest.mark.slow so they can be excluded with pytest -m 'not slow'.",
+      "type": "test",
+      "inputs": ["Section 3.1 performance requirements", "T029 orchestrator"],
+      "outputs": ["tests/integration/test_performance.py", "tests/conftest.py"],
+      "dependencies": ["T040"],
+      "acceptance_criteria": [
+        "10K rows test completes in < 60s on CI machine (2 CPU cores, 4GB RAM)",
+        "50K rows test completes in < 120s",
+        "Memory test uses psutil for measurement",
+        "Row limit test shows user-facing error message"
+      ],
+      "edge_cases": [
+        "Performance tests must use --no-llm to avoid network dependency",
+        "Time measurement must exclude fixture file generation time"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T044",
+      "name": "End-to-End Test Scenarios",
+      "description": "Create tests/integration/test_e2e.py with the 4 end-to-end scenarios from Section 9.4. Scenario 1 — Happy path: full pipeline on clean_transactions.csv with no LLM; verify exit code 0, CLEAN rating, empty findings, valid trail. Scenario 2 — Full anomaly detection: full pipeline on transactions_with_anomalies.csv; verify >= 15 findings, JSON schema validates, Markdown has required sections. Scenario 3 — Error recovery (checkpoint): run pipeline on large file, interrupt after layer 2 checkpoint saved (using monkeypatch to raise exception at start of layer 3), restart with force_resume=True, assert output equivalent to uninterrupted run. Scenario 4 — Rule validation: run validate_config on invalid_rules.yaml via CLI; assert non-zero exit and all 3 error types reported (duplicate ID, missing threshold, bad condition). Each scenario cleans up temp files in teardown.",
+      "type": "integration",
+      "inputs": ["Section 9.4 E2E scenarios", "T034 fixtures", "T032 CLI"],
+      "outputs": ["tests/integration/test_e2e.py"],
+      "dependencies": ["T042", "T043"],
+      "acceptance_criteria": [
+        "All 4 E2E scenarios pass",
+        "Scenario 3 checkpoint resume produces same finding count as fresh run",
+        "All test output written to temp dirs (no test pollution)",
+        "Tests run in < 3 minutes total (excluding performance-marked tests)"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T045",
+      "name": "Large File Performance Optimization (Polars)",
+      "description": "Create ave/utils/dataframe_adapter.py. Implement DataFrameAdapter class that wraps both Pandas and Polars DataFrames behind a unified interface. Methods: __init__(df: Any, backend: str = 'pandas'); to_pandas() -> pd.DataFrame; to_polars() -> pl.DataFrame; shape -> Tuple[int, int]; columns -> List[str]; dtypes -> dict; iter_rows(as_dict=True) -> Iterator; filter(mask: Any) -> 'DataFrameAdapter'; select_columns(cols: List[str]) -> 'DataFrameAdapter'; get_column(col: str) -> Any; apply_row_hash() -> List[str]; row_as_dict(idx: int) -> dict. In layer1_ingestion._switch_to_polars_if_large: wrap in DataFrameAdapter. Update rule_engine.py and integrity checks to use DataFrameAdapter.iter_rows() for row-by-row operations where vectorization is not possible. Use Polars expressions for vectorized operations when backend is 'polars'.",
+      "type": "backend",
+      "inputs": ["Section 3.1 performance requirements", "Section 10.4 Polars risk mitigation", "T014 layer 1", "T016 rule engine"],
+      "outputs": ["ave/utils/dataframe_adapter.py"],
+      "dependencies": ["T016", "T019"],
+      "acceptance_criteria": [
+        "DataFrameAdapter wraps Pandas and Polars with same method signatures",
+        "iter_rows() works correctly for both backends",
+        "Rule engine tests still pass after adapter integration",
+        "Polars backend used when row count >= threshold from config"
+      ],
+      "edge_cases": [
+        "Polars lazy evaluation: force evaluation before passing to adapter operations",
+        "Polars null type differs from Pandas NaN: normalize null handling in adapter"
+      ],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T046",
+      "name": "JSON Exporter Module",
+      "description": "Create ave/export/json_exporter.py. Implement JsonExporter class with generate(report: dict, output_path: Path) -> Path. The generate method must: validate report dict has all required top-level keys from Section 2.5.2; convert any non-JSON-serializable types (datetime, Path, Decimal objects) using a custom JSONEncoder that converts: datetime -> ISO string, Path -> str, Decimal -> float, set -> list, dataclass -> dict via dataclasses.asdict(); write with json.dump(report, f, indent=2, ensure_ascii=False, cls=AveJSONEncoder); return output_path. Ensure ensure_ascii=False to preserve Vietnamese characters in output.",
+      "type": "backend",
+      "inputs": ["Section 2.5.2 JSON report schema", "T025 report dict"],
+      "outputs": ["ave/export/json_exporter.py"],
+      "dependencies": ["T025"],
+      "acceptance_criteria": [
+        "Output JSON is valid (json.loads succeeds)",
+        "Vietnamese characters preserved in JSON (not escaped as \\uXXXX)",
+        "datetime objects in report serialized as ISO 8601 strings",
+        "Output file has .json extension and indent=2 formatting"
+      ],
+      "edge_cases": [
+        "Report dict with nested dataclass objects: ensure recursive serialization",
+        "NaN float values (from Pandas): serialize as null in JSON (not 'NaN' string)"
+      ],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T047",
+      "name": "Config Fixture Files — Complete",
+      "description": "Complete tests/fixtures/minimal_config.yaml and tests/fixtures/full_config.yaml as defined in T034. minimal_config.yaml: only pipeline.max_rows and rules_file (pointing to rules/default_rules.yaml), no column definitions, llm.enabled: false. full_config.yaml: all fields from Section 4.4 including: pipeline settings, ingestion with skip_rows, columns section defining amount (currency, VND, min_value: 0, required: true), transaction_date (date, min_date: 2020-01-01), vendor_id (text, pattern: ^VN-\\d{4}$), integrity settings (null_threshold_default: 0.0, outlier_std_multiplier: 3.0), llm section (enabled: false, provider: ollama, model: mistral:7b, batch_size: 50), approval_thresholds (level_1: 100000000, level_2: 500000000), fiscal_year_end_month: 12, output (formats: [json, markdown], pdf_enabled: false). invalid_rules.yaml: 3 rules — one with duplicate ID 'R001', one with condition 'gt' and no threshold, one with condition 'banana' (invalid type).",
+      "type": "infra",
+      "inputs": ["Section 4.4 config schema", "T007 AveConfig validation"],
+      "outputs": [
+        "tests/fixtures/minimal_config.yaml",
+        "tests/fixtures/full_config.yaml",
+        "tests/fixtures/invalid_rules.yaml"
+      ],
+      "dependencies": ["T007", "T015"],
+      "acceptance_criteria": [
+        "load_config('minimal_config.yaml') succeeds with Pydantic validation",
+        "load_config('full_config.yaml') succeeds and all fields populated",
+        "load_config with invalid_rules.yaml passed as rules_file fails with 3 specific errors",
+        "YAML files have comments explaining each non-obvious field"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T048",
+      "name": "Error Message Quality Pass",
+      "description": "Review and improve all user-facing error messages across the codebase. For every AveError subclass raised, ensure the message follows the pattern: WHAT went wrong | WHY it happened | HOW to fix it. Implement an ErrorMessageCatalog in ave/exceptions.py as a dict of error codes to message templates: E001 FILE_NOT_FOUND: 'File not found: {path}. Verify the path exists and you have read permissions.'; E002 FORMAT_UNSUPPORTED: 'Unsupported file format: {ext}. AVE supports CSV (.csv) and Excel (.xlsx) files.'; E003 ENCODING_FAILED: 'Could not detect file encoding. Try specifying --encoding utf-8 or --encoding latin-1.'; E004 CONFIG_NOT_FOUND: 'Config file not found: {path}. Create one using: ave validate-config --template'; E005 ROW_LIMIT_EXCEEDED: 'File has {count} rows, exceeding the 50,000-row MVP limit. Use --max-rows to raise the limit or process a subset.'; E006 RULE_INVALID: 'Rule {rule_id}: {field} is invalid. {reason}'; E007 LLM_UNAVAILABLE: 'LLM provider {provider} is not available. Run: ave check-llm --provider {provider}'; E008 OLLAMA_MODEL_MISSING: 'Ollama model {model} not found. Install it with: ollama pull {model}'. Update all raise sites to use catalog messages.",
+      "type": "backend",
+      "inputs": ["Section 3.5 usability requirements", "All raise sites in codebase"],
+      "outputs": ["ave/exceptions.py (updated with catalog)", "Updated error messages in all modules"],
+      "dependencies": ["T030", "T032"],
+      "acceptance_criteria": [
+        "Every AveError message answers: what, why, how-to-fix",
+        "Error code E001-E008 all present in catalog",
+        "CLI shows error messages without Python tracebacks (tracebacks only with --verbose)",
+        "LLM unavailable error includes specific fix command"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T049",
+      "name": "Installation & README Documentation",
+      "description": "Create README.md with complete installation and usage documentation. Sections: ## Installation (pip install ave; pip install ave[pdf] for PDF support); ## Quick Start (5-step guide: install Ollama, pull model, prepare CSV, create config, run ave run); ## Configuration (YAML schema reference linking to Section 4.4); ## Rules DSL (condition types table with examples); ## CLI Reference (all commands with all options); ## Output Files (description of JSON/Markdown/PDF/JSONL outputs); ## Performance (row limits, benchmarks); ## Troubleshooting (top 5 issues with solutions). Also create docs/AUDIT_TRAIL_FORMAT.md explaining the JSONL format and hash chain verification. Create docs/RULES_GUIDE.md explaining how to write custom rules with 5 worked examples.",
+      "type": "infra",
+      "inputs": ["All sections of context document", "T032 complete CLI"],
+      "outputs": ["README.md", "docs/AUDIT_TRAIL_FORMAT.md", "docs/RULES_GUIDE.md"],
+      "dependencies": ["T032", "T048"],
+      "acceptance_criteria": [
+        "Quick Start guide can be followed by new user in < 30 minutes",
+        "All CLI options documented with types and defaults",
+        "All 15 condition types documented with YAML examples",
+        "Troubleshooting covers: Ollama not running, encoding issues, large files, missing WeasyPrint",
+        "README.md renders correctly as GitHub Markdown"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T050",
+      "name": "DataFrameAdapter Integration into Layer 2",
+      "description": "Update ave/pipeline/layer2_integrity.py to use DataFrameAdapter. Replace direct Pandas/Polars calls with adapter methods. Specifically: IC-002 row hashing must use adapter.apply_row_hash() which handles both backends; IC-010 outlier detection must use adapter.get_column() and handle both numpy arrays and Polars Series. Ensure all Finding creation uses adapter.row_as_dict(idx) to capture row data. Run existing integrity tests to verify no regressions.",
+      "type": "backend",
+      "inputs": ["T045 DataFrameAdapter", "T019 Layer 2 integrity"],
+      "outputs": ["ave/pipeline/layer2_integrity.py (updated for adapter)"],
+      "dependencies": ["T045", "T019"],
+      "acceptance_criteria": [
+        "All existing integrity unit tests still pass",
+        "IC-002 works correctly with Polars DataFrames",
+        "No direct pandas imports in layer2_integrity.py (use adapter only)"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T051",
+      "name": "DataFrameAdapter Integration into Layer 3",
+      "description": "Update ave/pipeline/layer3_anomaly.py and ave/engines/rule_engine.py to use DataFrameAdapter. Rule engine evaluate() must accept DataFrameAdapter. Vectorized evaluators (gt, lt, eq, etc.) must use adapter.get_column() and handle Polars Series vs Pandas Series. Row-level evaluators (weekend_transaction, compound) must use adapter.iter_rows(). Update _prepare_llm_batches to use adapter.iter_rows(). Ensure R018 frequency check works with both backends. Run existing anomaly tests to verify no regressions.",
+      "type": "backend",
+      "inputs": ["T045 DataFrameAdapter", "T023 Layer 3 anomaly"],
+      "outputs": ["ave/engines/rule_engine.py (updated)", "ave/pipeline/layer3_anomaly.py (updated)"],
+      "dependencies": ["T045", "T023"],
+      "acceptance_criteria": [
+        "All rule engine unit tests still pass",
+        "Rule evaluation works with both Pandas and Polars DataFrames",
+        "LLM batch preparation works with Polars adapter"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T052",
+      "name": "Full Regression Test Run & Coverage Report",
+      "description": "Configure pytest with coverage in pyproject.toml: [tool.pytest.ini_options] with testpaths=['tests'], addopts='--cov=ave --cov-report=term-missing --cov-report=html'. Set minimum coverage thresholds: fail if total coverage < 80%. Create Makefile or justfile with targets: test (run all tests), test-unit (run unit only), test-integration (run integration), test-slow (include performance tests), coverage (generate HTML report), lint (ruff check + ruff format --check). Run full test suite. Fix any failures. Ensure all unit tests pass, all integration tests pass, performance tests run within limits. Generate coverage report. Document any gaps > 10% uncovered lines in key modules.",
+      "type": "test",
+      "inputs": ["All test files", "All source files"],
+      "outputs": ["pyproject.toml (pytest config)", "Makefile", "htmlcov/ (coverage report)"],
+      "dependencies": ["T044", "T050", "T051"],
+      "acceptance_criteria": [
+        "pytest exits with code 0 (all tests pass)",
+        "Total coverage >= 80%",
+        "ave/engines/rule_engine.py coverage >= 90%",
+        "ave/engines/trail_writer.py coverage >= 95%",
+        "ave/utils/normalization.py coverage >= 90%",
+        "No test takes > 30 seconds individually (excluding @pytest.mark.slow tests)"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "medium"
+    },
+    {
+      "id": "T053",
+      "name": "Ruff Lint & Format Pass",
+      "description": "Run ruff check . and ruff format . on entire codebase. Fix all lint errors. Configure ruff.toml: line-length=100, target-version='py311', select=['E','W','F','I','N','UP','B','C4','SIM','PIE'], ignore=['E501' for long strings in YAML templates]. Ensure all imports are sorted (isort-compatible via ruff). Ensure no unused imports. Ensure all type annotations use Python 3.10+ union syntax (X | Y instead of Union[X, Y]). Add pre-commit config (.pre-commit-config.yaml) with ruff hooks for future enforcement.",
+      "type": "infra",
+      "inputs": ["All Python source files"],
+      "outputs": ["ruff.toml (updated)", ".pre-commit-config.yaml", "All source files (cleaned)"],
+      "dependencies": ["T052"],
+      "acceptance_criteria": [
+        "ruff check . exits with 0 errors",
+        "ruff format --check . exits with 0 errors",
+        "All imports use Python 3.10+ union syntax",
+        ".pre-commit-config.yaml installs and runs successfully"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "low"
+    },
+    {
+      "id": "T054",
+      "name": "Final Integration Smoke Test & Release Prep",
+      "description": "Perform final end-to-end smoke test on a clean Python 3.11 virtualenv. Steps: (1) Create fresh venv; (2) pip install -e .; (3) Run ave --help; (4) Run ave validate-config --config rules/default_rules.yaml; (5) Run ave run --file tests/fixtures/transactions_with_anomalies.csv --config tests/fixtures/full_config.yaml --no-llm --output-dir /tmp/ave_smoke_test; (6) Verify output files exist: _report.json, _report.md, _trail.jsonl; (7) Run ave sessions --last 1; (8) Verify JSON report parses correctly and has >= 10 findings; (9) Run ave export --session <id> --format markdown; (10) Run TrailWriter.verify() on trail file. Document any issues found. Update CHANGELOG.md with MVP feature list. Tag version 0.1.0 in pyproject.toml.",
+      "type": "integration",
+      "inputs": ["All source files", "T034 fixtures", "T049 README"],
+      "outputs": ["CHANGELOG.md", "pyproject.toml version=0.1.0"],
+      "dependencies": ["T052", "T053", "T049"],
+      "acceptance_criteria": [
+        "All 10 smoke test steps complete without errors",
+        "JSON report has >= 10 findings from anomalies fixture",
+        "Trail file verify() returns True",
+        "CHANGELOG.md documents all MVP features",
+        "ave --help output matches README CLI reference section"
+      ],
+      "edge_cases": [],
+      "estimated_complexity": "low"
+    }
+  ]
+}

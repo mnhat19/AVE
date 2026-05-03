@@ -1,0 +1,28 @@
+rules:
+  - id: V001
+    name: Missing approver for high amount
+    description: Transactions above 100M VND must have approver.
+    condition: compound
+    logic: AND
+    sub_conditions:
+      - field: amount
+        condition: gt
+        threshold: 100000000
+      - field: approver
+        condition: is_null
+    severity: high
+    requires_cross_check: false
+    active: true
+    tags: [vas, approval]
+    audit_standard: VAS
+
+  - id: V002
+    name: Weekend transaction
+    description: Transactions on weekend require review.
+    field: transaction_date
+    condition: weekend_transaction
+    severity: medium
+    requires_cross_check: false
+    active: true
+    tags: [vas, weekend]
+    audit_standard: VAS
