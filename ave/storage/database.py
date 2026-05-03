@@ -232,6 +232,28 @@ class AveDatabase:
 
         self._run_with_retry(_op)
 
+    def update_finding_decision(
+        self,
+        finding_id: str,
+        decision: str,
+        decision_at: str,
+        note: Optional[str] = None,
+    ) -> None:
+        def _op():
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    """
+                    UPDATE findings
+                    SET human_decision = ?, human_decision_at = ?, human_decision_note = ?
+                    WHERE finding_id = ?
+                    """,
+                    (decision, decision_at, note, finding_id),
+                )
+                if cursor.rowcount == 0:
+                    raise StorageError(f"Finding not found: {finding_id}")
+
+        self._run_with_retry(_op)
+
     def get_llm_stats(self, session_id: str) -> Dict[str, Any]:
         def _op():
             with self._connect() as conn:
