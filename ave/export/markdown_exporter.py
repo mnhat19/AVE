@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -118,7 +118,7 @@ class MarkdownExporter:
         lines.append("# AVE Audit Report")
         lines.append(f"**Session:** {meta.get('session_id', '')}")
         lines.append(f"**File:** {meta.get('file_processed', '')}")
-        lines.append(f"**Date:** {meta.get('generated_at', datetime.utcnow().isoformat())}")
+        lines.append(f"**Date:** {meta.get('generated_at', datetime.now(timezone.utc).isoformat())}")
         lines.append(f"**Status:** {status}")
         lines.append("")
 

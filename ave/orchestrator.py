@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from rich.prompt import Confirm
 
@@ -61,6 +61,17 @@ def _build_context_from_checkpoint(checkpoint: dict) -> PipelineContext:
         Finding.from_dict(item) for item in checkpoint.get("verified_findings") or []
     ]
     return ctx
+
+
+def _normalize_pipeline_output(ctx: Any) -> PipelineContext:
+    if isinstance(ctx, PipelineContext):
+        return ctx
+
+    if isinstance(ctx, dict):
+        payload = dict(ctx)
+        return _build_context_from_checkpoint(payload)
+
+    raise TypeError(f"Unable to normalize pipeline output: {type(ctx).__name__}")
 
 
 def _attach_runtime_objects(
@@ -221,8 +232,17 @@ def run_pipeline(
     _attach_runtime_objects(ctx, trail_writer, database, llm_client, config_path)
 
     if ctx.current_layer == 0:
-        pipeline = build_pipeline(checkpoint)
-        ctx = pipeline.invoke(ctx)
+        # try:
+        #     pipeline = build_pipeline(checkpoint)
+        #     result = pipeline.invoke(ctx)
+        #     ctx = _normalize_pipeline_output(result)
+        #     _attach_runtime_objects(ctx, trail_writer, database, llm_client, config_path)
+        # except Exception as exc:
+        #     logger.warning(
+        #         "LangGraph pipeline failed, falling back to sequential execution: %s",
+        #         exc,
+        #     )
+        ctx = _run_sequential(ctx, 1, checkpoint)
     else:
         ctx = _run_sequential(ctx, ctx.current_layer + 1, checkpoint)
 

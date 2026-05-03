@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 
@@ -124,7 +124,7 @@ def build_source_manifest(
 ) -> SourceManifest:
     return SourceManifest(
         manifest_version=manifest_version,
-        created_at=datetime.utcnow().isoformat(),
+        created_at=datetime.now(timezone.utc).isoformat(),
         session_id=session_id,
         source_file=source_file,
         schema=schema,

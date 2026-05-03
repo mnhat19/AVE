@@ -15,8 +15,8 @@ class PdfExporter:
         self._error: Optional[str] = None
 
         try:
-            import weasyprint  # noqa: F401
             import markdown  # noqa: F401
+            import weasyprint  # noqa: F401
 
             self.available = True
         except Exception as exc:  # pragma: no cover - optional dependency
@@ -30,8 +30,8 @@ class PdfExporter:
             return None
 
         try:
-            from weasyprint import HTML
             import markdown
+            from weasyprint import HTML
         except Exception as exc:  # pragma: no cover - optional dependency
             logger.warning("PDF export skipped: %s", exc)
             return None

@@ -4,7 +4,7 @@ import math
 import re
 import unicodedata
 from datetime import date, datetime
-from typing import Any, Iterable, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 try:
     import pandas as pd

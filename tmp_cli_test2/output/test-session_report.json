@@ -1,0 +1,88 @@
+{
+  "report_meta": {
+    "session_id": "test-session",
+    "generated_at": "2026-05-03T03:07:56.451364+00:00",
+    "ave_version": "0.1.0",
+    "file_processed": "tmp_cli_test2\\sample.csv",
+    "config_file": "tmp_cli_test2\\ave_config.yaml",
+    "config_hash": "aff25ad205a65d31b77e0feb688cb16088884473119d1fce363d851a7499c47f"
+  },
+  "source_summary": {
+    "manifest_version": "1.0",
+    "created_at": "2026-05-03T03:07:56.434343+00:00",
+    "session_id": "test-session",
+    "source_file": {
+      "path": "D:\\Document\\AiB\\AVE_1.0\\tmp_cli_test2\\sample.csv",
+      "filename": "sample.csv",
+      "format": "csv",
+      "size_bytes": 43,
+      "sha256_hash": "0f9de173ff19a0ad331edf26981647197fe075e0ee3ec15e0ad4960ad04bff5b",
+      "encoding": "utf-8",
+      "sheet_name": null
+    },
+    "schema": {
+      "row_count_raw": 1,
+      "row_count_after_cleaning": 1,
+      "column_count": 3,
+      "dropped_empty_rows": 0,
+      "dropped_empty_cols": 0,
+      "columns": [
+        {
+          "original_name": "account",
+          "normalized_name": "account",
+          "inferred_dtype": "text",
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 1,
+          "sample_values": [
+            "Sales"
+          ]
+        },
+        {
+          "original_name": "amount",
+          "normalized_name": "amount",
+          "inferred_dtype": "numeric",
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 1,
+          "sample_values": [
+            "100"
+          ]
+        },
+        {
+          "original_name": "date",
+          "normalized_name": "date",
+          "inferred_dtype": "date",
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 1,
+          "sample_values": [
+            "2024-01-01"
+          ]
+        }
+      ],
+      "parse_warnings": []
+    }
+  },
+  "integrity_summary": {
+    "overall_rating": "CLEAN",
+    "total_score": 0,
+    "checks_run": 10,
+    "findings_count": 0
+  },
+  "anomaly_summary": {
+    "total_flagged": 0,
+    "by_severity": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    },
+    "by_rule": {},
+    "llm_assisted_count": 0
+  },
+  "findings": [],
+  "audit_trail_ref": "tmp_cli_test2\\output\\test-session_trail.jsonl",
+  "recommendations": [
+    "No anomalies detected; no additional action required."
+  ]
+}

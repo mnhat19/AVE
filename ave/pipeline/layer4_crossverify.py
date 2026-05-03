@@ -21,6 +21,7 @@ def validate_prerequisites(ctx: PipelineContext) -> None:
 
 
 def run(ctx: PipelineContext) -> PipelineContext:
+    logger.info("Layer4 run start")
     validate_prerequisites(ctx)
     start = time.perf_counter()
 
@@ -60,5 +61,6 @@ def run(ctx: PipelineContext) -> PipelineContext:
         len(verified),
     )
 
+    logger.info("Layer4 run end")
     ctx.current_layer = 4
     return ctx

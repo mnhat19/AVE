@@ -1,0 +1,22 @@
+
+pipeline:
+  checkpoint_enabled: false
+ingestion:
+  encoding: utf-8
+  separator: ","
+  header_row: 0
+integrity:
+  null_threshold_default: 0.0
+  outlier_std_multiplier: 3.0
+  cross_checks: []
+llm:
+  enabled: false
+  provider: ollama
+  model: mistral:7b
+output:
+  directory: ./ave_output
+  formats:
+    - json
+    - markdown
+rules_file: ../rules/default_rules.yaml
+  pdf_enabled: false

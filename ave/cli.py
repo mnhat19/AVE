@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -108,7 +109,7 @@ def _create_session_record(
 
     return {
         "session_id": session_id,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "running",
         "input_file_path": str(file_path),
         "input_file_hash": hash_file(file_path),
@@ -120,7 +121,7 @@ def _create_session_record(
 
 @app.command()
 def run(
-    file: Path = typer.Option(..., "--file", help="Input data file (CSV or Excel)"),
+    file: Path = typer.Argument(..., help="Input data file (CSV or Excel)"),
     config: Path = typer.Option(
         "./audit_rules.yaml", "--config", help="Rules and config file"
     ),
@@ -205,6 +206,11 @@ def run(
             llm_client=llm_client,
             config_path=config_path,
         )
+
+        console.print(f"DEBUG: Output dir: {output_dir}")
+        console.print(f"DEBUG: Report paths: {ctx.report_paths}")
+        console.print(f"DEBUG: Current layer: {ctx.current_layer}")
+        console.print(f"DEBUG: Output dir exists: {output_dir.exists()}")
 
         if temp_dir is not None:
             temp_dir.cleanup()
@@ -299,7 +305,7 @@ def review(
 
         note = Prompt.ask("Note (optional)", default="")
         decision_value = "accepted" if decision == "A" else "rejected"
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         db.update_finding_decision(finding.finding_id, decision_value, timestamp, note)
         trail_writer.write(
@@ -484,6 +490,64 @@ def check_llm_cmd(
 
     except LLMUnavailableError as exc:
         console.print(f"LLM provider {provider} is not available: {exc}")
+        raise typer.Exit(code=1)
+def verify(
+    trail_file: Path = typer.Argument(..., help="Trail file to verify"),
+) -> None:
+    """Verify the integrity of an AVE audit trail."""
+    from ave.engines.trail_writer import TrailWriter
+
+    trail_path = Path(trail_file)
+    if not trail_path.exists():
+        console.print(f"Trail file not found: {trail_path}")
+        raise typer.Exit(code=1)
+
+    try:
+        # Read and verify the trail
+        with trail_path.open("r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        if not lines:
+            console.print("Trail file is empty")
+            raise typer.Exit(code=1)
+
+        # Check final hash
+        last_line = lines[-1].strip()
+        if not last_line:
+            console.print("Trail file ends with empty line")
+            raise typer.Exit(code=1)
+
+        try:
+            final_entry = json.loads(last_line)
+        except json.JSONDecodeError:
+            console.print("Invalid JSON in final trail entry")
+            raise typer.Exit(code=1)
+
+        if final_entry.get("action_type") != "trail_finalized":
+            console.print("Trail is not finalized")
+            raise typer.Exit(code=1)
+
+        expected_hash = final_entry.get("chain_hash")
+        if not expected_hash:
+            console.print("No chain hash found in final entry")
+            raise typer.Exit(code=1)
+
+        # Compute actual hash of all lines except the last
+        content = "".join(lines[:-1]).encode("utf-8")
+        actual_hash = hashlib.sha256(content).hexdigest()
+
+        if actual_hash == expected_hash:
+            console.print("Trail integrity verified successfully")
+            console.print(f"Session ID: {final_entry.get('session_id')}")
+            console.print(f"Total entries: {len(lines) - 1}")
+        else:
+            console.print("Trail integrity check failed")
+            console.print(f"Expected hash: {expected_hash}")
+            console.print(f"Actual hash: {actual_hash}")
+            raise typer.Exit(code=1)
+
+    except Exception as exc:
+        console.print(f"Error verifying trail: {exc}")
         raise typer.Exit(code=1)
 
 

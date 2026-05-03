@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -71,7 +71,7 @@ def _aggregate_findings(ctx: PipelineContext) -> dict:
 
     report_meta = {
         "session_id": ctx.session_id,
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "ave_version": __version__,
         "file_processed": str(ctx.input_file_path) if ctx.input_file_path else "",
         "config_file": config_path or "",
@@ -99,6 +99,7 @@ def _export_json(report: dict, output_dir: Path, session_id: str) -> Path:
 
     with target_path.open("w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)
+    logger.info("Exported JSON to %s", target_path)
     return target_path
 
 
@@ -158,7 +159,7 @@ def _update_session_in_db(
 
     integrity = report.get("integrity_summary", {}) or {}
     updates = {
-        "completed_at": datetime.utcnow().isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
         "status": "completed",
         "overall_rating": integrity.get("overall_rating"),
         "total_findings": len(_collect_findings(ctx)),
@@ -186,6 +187,7 @@ def _save_rule_snapshot(ctx: PipelineContext) -> None:
 
 
 def run(ctx: PipelineContext) -> PipelineContext:
+    logger.info("Layer5 run start")
     report = _aggregate_findings(ctx)
     findings = _collect_findings(ctx)
 
@@ -271,5 +273,5 @@ def run(ctx: PipelineContext) -> PipelineContext:
     _save_rule_snapshot(ctx)
     _update_session_in_db(ctx, report, trail_path)
 
-    logger.info("JSON report generated: %s", report_path)
+    logger.info("Layer5 run end, report_paths: %s", ctx.report_paths)
     return ctx
